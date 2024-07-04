@@ -41,32 +41,22 @@ func (r *Runner) Run(ctx context.Context, debug bool) error {
 	// the actual program, which watches for the ctx being signaled
 	// there's probably a fancy way of putting some error code in the context
 
-	// i := 0
-	// le := len(r.Args) - 1
+	i := 0
+	le := len(r.Args) - 1
 	for {
 		select {
 		case <-ctx.Done():
 			return errors.New("Interrupted!")
 		default:
 			time.Sleep(time.Second / 2)
-			f1 := flag.GetFlagMust[string](r.Flags, "foo")
-			fmt.Printf("foo value: %v (%T)\n", f1, f1)
-			f2, ok := flag.GetFlag[int](r.Flags, "bar")
-			if ok {
-				fmt.Printf("bar value: %v (%T)\n", f2, f2)
+			if i++; i > le {
+				i = 1
 			}
-			f3 := flag.GetFlagMust[bool](r.Flags, "foobar")
-			fmt.Printf("foobar value: %v (%T)\n", f3, f3)
-			f4 := flag.GetFlagMust[int64](r.Flags, "foobar")
-			fmt.Printf("foobar value: %v (%T)\n", f4, f4)
-			// if i++; i > le {
-			// 	i = 1
-			// }
-			// if le <= 0 {
-			// 	fmt.Fprintln(r.Output, 0)
-			// } else {
-			// 	fmt.Fprintln(r.Output, i, r.Args[i])
-			// }
+			if le <= 0 {
+				fmt.Fprintln(r.Output, 0)
+			} else {
+				fmt.Fprintln(r.Output, i, r.Args[i])
+			}
 		}
 	}
 }

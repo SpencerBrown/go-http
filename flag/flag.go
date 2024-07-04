@@ -18,14 +18,14 @@ type FlagTypes interface {
 	int | int64 | string | bool
 }
 
-// NewFlags creates a new set of flags. 
+// NewFlags creates a new set of flags.
 func NewFlags() Flags {
 	return make(Flags)
 }
 
 // NewFlag creates a new flag. It is a generic function that sets the default value,
 // whose type is carried because it is an interface{}.
-// It returns a new *Flags because 
+// It returns a new *Flags because
 func NewFlag[V FlagTypes](f Flags, name string, shortName string, description string, value V) {
 	if f == nil {
 		panic("flag.NewFlag called with nil Flags")
@@ -37,24 +37,30 @@ func NewFlag[V FlagTypes](f Flags, name string, shortName string, description st
 	}
 }
 
-// GetFlag is a generic type to get the value of a flag.
-// ok is false if the type of the value is not what was expected.
-func GetFlag[V FlagTypes](f Flags, name string) (V, bool) {
-	v := f[name]
-	vv, ok := v.Value.(V)
-	return vv, ok
+// GetValue is a generic type to get a flag and the value of a flag.
+// ok is false if the flag does not exist, or the type of the value is not what was expected.
+func GetValue[V FlagTypes](f Flags, name string) (Flag, V, bool) {
+	flg, ok := f[name]
+	if !ok {
+		return Flag{}, *new(V), false
+	}
+	v, ok := flg.Value.(V)
+	return flg, v, ok
 }
 
-// GetFlagMust is a generic type to get the value of a flag.
-// It panics if the type of the flag value is not what was expected.
-func GetFlagMust[V FlagTypes](f Flags, name string) V {
-	v := f[name].Value
-	vv, ok := v.(V)
+// GetValueMust is a generic type to get the value of a flag.
+// It panics if the flag does not exist, or type of the flag value is not what was expected.
+func GetValueMust[V FlagTypes](f Flags, name string) (Flag, V) {
+	flg, ok := f[name]
+	if !ok {
+		panic(fmt.Sprintf("flag.GetValueMust internal error: flag %s does not exist", name))
+	}
+	v, ok := flg.Value.(V)
 	if !ok {
 		var wantV V
-		panic(fmt.Sprintf("flag.GetFlagMust internal error: flag %s is type %T, tried to get as type %T", name, v, wantV))
+		panic(fmt.Sprintf("flag.GetValueMust internal error: flag %s is type %T, tried to get as type %T", name, flg.Value, wantV))
 	}
-	return vv
+	return flg, v
 }
 
 // GetFlags parses the command line args and sets flags accordingly
