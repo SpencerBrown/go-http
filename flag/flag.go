@@ -6,14 +6,19 @@ import (
 	"text/tabwriter"
 )
 
+// Flag is a single flag.
 type Flag struct {
-	ShortName   string // short flag name
-	Description string // description of flag
-	Value       any    // default value and type of flag
+	name        string   // name of flag
+	alias       []string // alias names
+	shortName   rune     // short flag name (single character)
+	description string   // description of flag
+	value       any      // default value and type of flag
 }
 
-type Flags map[string]Flag
+// Flags is a set of Flag.
+type Flags map[string]*Flag
 
+// FlagTypes is a constraint on the types of flag values.
 type FlagTypes interface {
 	int | int64 | string | bool
 }
@@ -23,44 +28,88 @@ func NewFlags() Flags {
 	return make(Flags)
 }
 
-// NewFlag creates a new flag. It is a generic function that sets the default value,
+// Alias returns the aliases of a Flag.
+func (f *Flag) Alias() []string {
+	return f.alias
+}
+
+// ShortName returns the one-character short name of a flag.
+func (f *Flag) ShortName() rune {
+	return f.shortName
+}
+
+// Description returns the description of a flag.
+func (f *Flag) Description() string {
+	return f.description
+}
+
+// NewFlag creates a new flag and adds it to a set of flags.
+// It is a generic function that sets the default value
 // whose type is carried because it is an interface{}.
-// It returns a new *Flags because
-func NewFlag[V FlagTypes](f Flags, name string, shortName string, description string, value V) {
-	if f == nil {
+// The caller must ensure that the flag name, aliases, and short name
+// don't conflict with any existing flags in the set. Otherwise panic ensues.
+func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn rune, desc string, value V) *Flag {
+	if flgs == nil {
 		panic("flag.NewFlag called with nil Flags")
 	}
-	f[name] = Flag{
-		ShortName:   shortName,
-		Description: description,
-		Value:       value,
+	flg := &Flag{
+		name:        nm,
+		alias:       al,
+		shortName:   sn,
+		description: desc,
+		value:       value,
+	}
+	for flgName, flgValue := range flgs {
+		if flgName == flg.name {
+			panic(fmt.Sprintf("Internal error: attempt to add already existing flag %s", flgName))
+		}
+		for _, newAlias := range flg.alias {
+			for _, oldAlias := range flgValue.alias {
+				if oldAlias == newAlias {
+					panic(fmt.Sprintf("Internal error: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
+				}
+			}
+		}
+		if flgValue.shortName == flg.shortName {
+			panic(fmt.Sprintf("Internal error: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
+		}
+	}
+	flgs[nm] = flg
+	return flg
+}
+
+// GetFlagOK gets a flag, returning ok as false if the flag does not exist.
+func GetFlagOK(f Flags, name string) (*Flag, bool) {
+	flg, ok := f[name]
+	return flg, ok
+}
+
+// GetFlag gets a flag, panics if the flag does not exist.
+func GetFlag(f Flags, name string) *Flag {
+	flg, ok := f[name]
+	if ok {
+		return flg
+	} else {
+		panic(fmt.Sprintf("flag.GeFlag internal error: flag %s does not exist", name))
 	}
 }
 
-// GetValue is a generic type to get a flag and the value of a flag.
+// GetValueOK is a generic function to get a flag and the value of a flag.
 // ok is false if the flag does not exist, or the type of the value is not what was expected.
-func GetValue[V FlagTypes](f Flags, name string) (Flag, V, bool) {
-	flg, ok := f[name]
-	if !ok {
-		return Flag{}, *new(V), false
-	}
-	v, ok := flg.Value.(V)
-	return flg, v, ok
+func GetValueOK[V FlagTypes](f *Flag) (V, bool) {
+	v, ok := f.value.(V)
+	return v, ok
 }
 
-// GetValueMust is a generic type to get the value of a flag.
+// GetValue is a generic function to get a Flag object, and the properly typed value of the flag.
 // It panics if the flag does not exist, or type of the flag value is not what was expected.
-func GetValueMust[V FlagTypes](f Flags, name string) (Flag, V) {
-	flg, ok := f[name]
-	if !ok {
-		panic(fmt.Sprintf("flag.GetValueMust internal error: flag %s does not exist", name))
-	}
-	v, ok := flg.Value.(V)
+func GetValue[V FlagTypes](f *Flag) V {
+	v, ok := f.value.(V)
 	if !ok {
 		var wantV V
-		panic(fmt.Sprintf("flag.GetValueMust internal error: flag %s is type %T, tried to get as type %T", name, flg.Value, wantV))
+		panic(fmt.Sprintf("flag.GetValue internal error: for flag %s, value is type %T, tried to get as type %T", f.name, f.value, wantV))
 	}
-	return flg, v
+	return v
 }
 
 // GetFlags parses the command line args and sets flags accordingly
@@ -82,9 +131,9 @@ func (fs Flags) String() string {
 	s := strings.Builder{}
 	s.WriteString("Flags:\n")
 	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
-	fmt.Fprintln(w, "Name\tShort\tDefault\tType\tDescription")
+	fmt.Fprintln(w, "Name\tShort\tAliases\tDefault\tType\tDescription")
 	for n, f := range fs {
-		fmt.Fprintf(w, "%s\t%s\t%v\t%T\t%s\n", n, f.ShortName, f.Value, f.Value, f.Description)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%T\t%s\n", n, string(f.shortName), strings.Join(f.alias, ","), f.value, f.value, f.description)
 	}
 	w.Flush()
 	return s.String()

@@ -7,18 +7,20 @@ import (
 
 func TestNewFlags(t *testing.T) {
 	t.Run("NewFlags", func(t *testing.T) {
-		if got := NewFlags(); !reflect.DeepEqual(got, map[string]Flag{}) {
-			t.Errorf("NewFlags() = %v, want %v", got, map[string]Flag{})
+		want := make(Flags)
+		if got := NewFlags(); !reflect.DeepEqual(got, want) {
+			t.Errorf("NewFlags() = %v, want %v", got, want)
 		}
 	})
 }
 
-// TestNewFlag also tests GetValue and GetValueMust
+// TestNewFlag also tests GetFlagOK, GetValueOK, and GetValue
 func TestNewFlag(t *testing.T) {
 	type args struct {
 		f           Flags
 		name        string
-		shortName   string
+		alias       []string
+		shortName   rune
 		description string
 		value       any
 	}
@@ -32,14 +34,17 @@ func TestNewFlag(t *testing.T) {
 			args: args{
 				f:           NewFlags(),
 				name:        "IntFlag",
-				shortName:   "I",
+				alias:       []string{"IF", "IntFlg"},
+				shortName:   'I',
 				description: "Int Flag",
 				value:       42,
 			},
 			want: Flag{
-				ShortName:   "I",
-				Description: "Int Flag",
-				Value:       42,
+				name:        "IntFlag",
+				alias:       []string{"IF", "IntFlg"},
+				shortName:   'I',
+				description: "Int Flag",
+				value:       42,
 			},
 		},
 	}
@@ -47,28 +52,32 @@ func TestNewFlag(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			switch v := tt.args.value.(type) {
 			case int:
-				NewFlag(tt.args.f, tt.args.name, tt.args.shortName, tt.args.description, v)
-				flg, val, ok := GetValue[int](tt.args.f, tt.args.name)
+				newFlg := NewFlag(tt.args.f, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v)
+				flg, ok := GetFlagOK(tt.args.f, tt.args.name)
 				if ok {
-					if !reflect.DeepEqual(flg, tt.want) {
-						t.Errorf("GetValue[int] got Flag %v, want %v", flg, tt.want)
+					if !reflect.DeepEqual(*flg, tt.want) {
+						t.Errorf("GetFlagOK for %s got Flag %v, want %v", tt.args.name, flg, tt.want)
 					}
-					if val != tt.want.Value {
-						t.Errorf("GetValue[int] got %d, want %d", val, tt.want.Value)
+					if !reflect.DeepEqual(*flg, *newFlg) {
+						t.Errorf("GetFlagOK for %s returned wrong flag", tt.args.name)
+					}
+					val, ok := GetValueOK[int](flg)
+					if !ok {
+						t.Errorf("GetValueOK[int] for %s returned not ok", tt.args.name)
+					}
+					if val != tt.want.value {
+						t.Errorf("GetValue[int] got %d, want %d", val, tt.want.value)
 					}
 				} else {
-					t.Errorf("GetValue for %s returned not ok", tt.args.name)
+					t.Errorf("GetFlagOK for %s returned not ok", tt.args.name)
 				}
-				flg, val = GetValueMust[int](tt.args.f, tt.args.name) // should not panic
-				if !reflect.DeepEqual(flg, tt.want) {
-					t.Errorf("GetValueMust[int] got Flag %v, want %v", flg, tt.want)
+				val := GetValue[int](flg) // should not panic
+				if val != tt.want.value {
+					t.Errorf("GetValue[int] got %d, want %d", val, tt.want.value)
 				}
-				if val != tt.want.Value {
-					t.Errorf("GetValueMust[int] got %d, want %d", val, tt.want.Value)
-				}
-				defer func() { _ = recover() }()                    // ignore panic
-				_, _ = GetValueMust[int64](tt.args.f, tt.args.name) // should panic
-				t.Errorf("GetValueMust[int64] should have paniced, but didn't")
+				defer func() { _ = recover() }() // ignore panic
+				GetValue[int64](flg)             // should panic
+				t.Errorf("GetValueint64] should have panicked, but didn't")
 			default:
 				t.Errorf("Unknown value type %T val %v", tt.args.value, tt.args.value)
 			}
