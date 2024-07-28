@@ -133,7 +133,13 @@ func (fs Flags) String() string {
 	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tShort\tAliases\tDefault\tType\tDescription")
 	for n, f := range fs {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%T\t%s\n", n, string(f.shortName), strings.Join(f.alias, ","), f.value, f.value, f.description)
+		var snString string
+		if f.shortName == 0 {
+			snString = " "
+		} else {
+			snString = string(f.shortName)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%T\t%s\n", n, snString, strings.Join(f.alias, ","), f.value, f.value, f.description)
 	}
 	w.Flush()
 	return s.String()
