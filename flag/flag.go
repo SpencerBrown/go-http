@@ -10,7 +10,7 @@ import (
 type Flag struct {
 	name        string   // name of flag
 	alias       []string // alias names
-	shortName   rune     // short flag name (single character)
+	shortName   string   // short flag name (must be single character)
 	description string   // description of flag
 	value       any      // default value and type of flag
 }
@@ -28,13 +28,18 @@ func NewFlags() Flags {
 	return make(Flags)
 }
 
+// Name returns the name of a Flag.
+func (f *Flag) Name() string {
+	return f.name
+}
+
 // Alias returns the aliases of a Flag.
 func (f *Flag) Alias() []string {
 	return f.alias
 }
 
 // ShortName returns the one-character short name of a flag.
-func (f *Flag) ShortName() rune {
+func (f *Flag) ShortName() string {
 	return f.shortName
 }
 
@@ -46,12 +51,44 @@ func (f *Flag) Description() string {
 // NewFlag creates a new flag and adds it to a set of flags.
 // It is a generic function that sets the default value
 // whose type is carried because it is an interface{}.
+// The short name can be null "" meaning no short name, or a single character.
+// The name, short name, and all aliases must not be blank.
 // The caller must ensure that the flag name, aliases, and short name
-// don't conflict with any existing flags in the set. Otherwise panic ensues.
-func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn rune, desc string, value V) *Flag {
+// don't conflict with any existing flags in the set, or with each other;
+// otherwise panic ensues.
+func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc string, value V) *Flag {
+	// do basic checks of the parameters
 	if flgs == nil {
 		panic("flag.NewFlag called with nil Flags")
 	}
+	if len(sn) > 1 {
+		panic("flag.NewFlag called with shortName of 2 characters or more")
+	}
+	if len(sn) == 1 && len(strings.TrimSpace(sn)) == 0 {
+		panic("flag.NewFlag called with blank short name")
+	}
+	if len(strings.TrimSpace(nm)) == 0 {
+		panic("flag.NewFlag called with blank flag name")
+	}
+	for _, alias := range al {
+		if len(strings.TrimSpace(alias)) == 0 {
+			panic("flag.NewFlag called with a blank alias")
+		}
+	}
+	// ensure no duplicates among name, aliases, and shortname
+	checker := make([]string, 0)
+	checker = append(checker, nm)
+	checker = append(checker, sn)
+	checker = append(checker, al...)
+	chk := make(map[string]struct{})
+	for _, str := range checker {
+		_, ok := chk[str]
+		if ok {
+			panic(fmt.Sprintf("flag.NewFlag: duplicate name %s", str))
+		}
+		chk[str] = struct{}{}
+	}
+	// create and return the flag
 	flg := &Flag{
 		name:        nm,
 		alias:       al,
@@ -61,17 +98,17 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn rune, desc stri
 	}
 	for flgName, flgValue := range flgs {
 		if flgName == flg.name {
-			panic(fmt.Sprintf("Internal error: attempt to add already existing flag %s", flgName))
+			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag %s", flgName))
 		}
 		for _, newAlias := range flg.alias {
 			for _, oldAlias := range flgValue.alias {
 				if oldAlias == newAlias {
-					panic(fmt.Sprintf("Internal error: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
+					panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
 				}
 			}
 		}
 		if flgValue.shortName == flg.shortName {
-			panic(fmt.Sprintf("Internal error: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
+			panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
 		}
 	}
 	flgs[nm] = flg
@@ -90,7 +127,7 @@ func GetFlag(f Flags, name string) *Flag {
 	if ok {
 		return flg
 	} else {
-		panic(fmt.Sprintf("flag.GeFlag internal error: flag %s does not exist", name))
+		panic(fmt.Sprintf("flag.GetFlag internal error: flag %s does not exist", name))
 	}
 }
 
@@ -112,7 +149,7 @@ func GetValue[V FlagTypes](f *Flag) V {
 	return v
 }
 
-// GetFlags parses the command line args and sets flags accordingly
+// ParseFlags parses the command line args and sets flags accordingly
 // Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
 // and the Args slice is set to the remaining command line arguments.
 // The flag can be --name or -shortname, the value can have an = or not.
@@ -122,7 +159,7 @@ func GetValue[V FlagTypes](f *Flag) V {
 // Duration flags accept any input valid for time.ParseDuration.
 // []string flags accept a list of comma-separated strings.
 // --help automatically prints out the flags.
-func GetFlags(fs Flags) error {
+func ParseFlags(fs Flags) error {
 	fmt.Println(fs)
 	return nil
 }
@@ -133,13 +170,7 @@ func (fs Flags) String() string {
 	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tShort\tAliases\tDefault\tType\tDescription")
 	for n, f := range fs {
-		var snString string
-		if f.shortName == 0 {
-			snString = " "
-		} else {
-			snString = string(f.shortName)
-		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%T\t%s\n", n, snString, strings.Join(f.alias, ","), f.value, f.value, f.description)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%v\t%T\t%s\n", n, f.shortName, strings.Join(f.alias, ","), f.value, f.value, f.description)
 	}
 	w.Flush()
 	return s.String()
