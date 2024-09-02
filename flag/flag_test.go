@@ -17,6 +17,7 @@ func TestNewFlags(t *testing.T) {
 }
 
 // TestNewFlag also tests GetFlagOK, GetValueOK, and GetValue
+// as well as f.Name(), f.Alias(), f.ShortName(), f.Description()
 func TestNewFlag(t *testing.T) {
 	type args struct {
 		f           Flags
@@ -164,6 +165,18 @@ func TestNewFlag(t *testing.T) {
 					} else {
 						t.Errorf("GetFlagOK for %s returned not ok", tt.args.name)
 					}
+					if flg.Name() != tt.want.name {
+						t.Errorf("Name() got %s, want %s", flg.Name(), tt.want.name)
+					}
+					if !reflect.DeepEqual(flg.Alias(), tt.want.alias) {
+						t.Errorf("Alias() got %v, want %v", flg.Alias(), tt.want.alias)
+					}
+					if flg.ShortName() != tt.want.shortName {
+						t.Errorf("ShortName() got %s, want %s", flg.ShortName(), tt.want.shortName)
+					}
+					if flg.Description() != tt.want.description {
+						t.Errorf("Description() got %s, want %s", flg.Description(), tt.want.description)
+					}
 					val := GetValue[int](flg) // should not panic
 					if val != tt.want.value {
 						t.Errorf("GetValue[int] got %d, want %d", val, tt.want.value)
@@ -212,13 +225,13 @@ func TestFlags_String(t *testing.T) {
 		},
 		{
 			name: "stringTest2",
-			fs:   Flags{
+			fs: Flags{
 				"flg1": &Flag{
-					name: "flg1",
-					alias: []string{"alias1"},
-					shortName: "",
+					name:        "flg1",
+					alias:       []string{"alias1"},
+					shortName:   "",
 					description: "",
-					value: "val",
+					value:       "val",
 				},
 			},
 			want: "Flags:\nName Short Aliases Default Type   Description\nflg1       alias1  val     string \n",
