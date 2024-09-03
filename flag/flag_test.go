@@ -1,7 +1,6 @@
 package flag
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 	"testing"
@@ -16,7 +15,7 @@ func TestNewFlags(t *testing.T) {
 	})
 }
 
-// TestNewFlag also tests GetFlagOK, GetValueOK, and GetValue
+// TestNewFlag also tests GetFlagOK, GetFlag, GetValueOK, and GetValue
 // as well as f.Name(), f.Alias(), f.ShortName(), f.Description()
 func TestNewFlag(t *testing.T) {
 	type args struct {
@@ -52,10 +51,22 @@ func TestNewFlag(t *testing.T) {
 			},
 		},
 		{
+			name: "nilFlags",
+			args: args{
+				f:         nil,
+				name:      "",
+				alias:     []string{},
+				shortName: "",
+				value:     "something",
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
 			name: "blankName",
 			args: args{
-				f:         NewFlags(),
-				name:      "",
+				f: 			 NewFlags(),
+				name: 		"",
 				alias:     []string{},
 				shortName: "",
 				value:     "something",
@@ -139,9 +150,10 @@ func TestNewFlag(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.shouldPanic {
-				vv := tt.args.value.(string)
-				defer func() { rec := recover(); fmt.Printf("Ignoring panic: %v\n", rec); _ = rec }() // ignore panic
-				_ = NewFlag(tt.args.f, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, vv)
+				defer func() { rec := recover(); /*fmt.Printf("Ignoring panic: %v\n", rec);*/ _ = rec }() // ignore panic
+				// the following line should panic, either because the value conversion to string panics,
+				// or because one of the args is invalid for some reason (which varies per test)
+				_ = NewFlag(tt.args.f, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, tt.args.value.(string))
 				t.Error("NewFlag should have panicked, but didn't")
 			} else {
 				switch v := tt.args.value.(type) {
@@ -154,6 +166,10 @@ func TestNewFlag(t *testing.T) {
 						}
 						if !reflect.DeepEqual(*flg, *newFlg) {
 							t.Errorf("GetFlagOK for %s returned wrong flag", tt.args.name)
+						}
+						flg2 := GetFlag(tt.args.f, tt.args.name)
+						if !reflect.DeepEqual(*flg2, tt.want) {
+							t.Errorf("GetFlag for %s got Flag %v, want %v", tt.args.name, flg2, tt.want)
 						}
 						val, ok := GetValueOK[int](flg)
 						if !ok {
@@ -241,6 +257,38 @@ func TestFlags_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.fs.String(); got != tt.want {
 				t.Errorf("Flags.String() = %s, want %s", strconv.Quote(got), strconv.Quote(tt.want))
+			}
+		})
+	}
+}
+
+func TestGetFlag(t *testing.T) {
+	type args struct {
+		f    Flags
+		name string
+		alias       []string
+		shortName   string
+		description string
+		value       any
+	}
+	tests := []struct {
+		name string
+		args args
+		want *Flag
+	}{
+		{
+			name: "nonexistentFlag",
+			args: args{
+				f:    NewFlags(),
+				name: "NonexistentFlag",
+			},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetFlag(tt.args.f, tt.args.name); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetFlag() = %v, want %v", got, tt.want)
 			}
 		})
 	}
