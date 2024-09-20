@@ -59,7 +59,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "",
 				alias:     []string{},
 				shortName: "",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -71,7 +71,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "",
 				alias:     []string{},
 				shortName: "",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -83,7 +83,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
 				shortName: "",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -95,7 +95,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
 				shortName: " ",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -107,7 +107,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
 				shortName: "to",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -119,7 +119,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"foobar", "barfoo"},
 				shortName: "t",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -131,7 +131,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"barfoo", "barfoo"},
 				shortName: "t",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -143,7 +143,7 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{"barfoo", "foobarfoo", "t"},
 				shortName: "t",
-				value:     "something",
+				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
@@ -156,8 +156,40 @@ func TestNewFlag(t *testing.T) {
 					NewFlag(f, "foobar", []string{}, "", "some description", 42)
 					return f
 				},
+				name:      "foobar",
+				alias:     []string{},
+				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagShortname",
+			args: args{
+				f: NewFlags(),
+				setupFlags: func(f Flags) Flags {
+					NewFlag(f, "foobar", []string{}, "f", "some description", 42)
+					return f
+				},
 				name:      "foobar2",
 				alias:     []string{},
+				shortName: "f",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagAlias",
+			args: args{
+				f: NewFlags(),
+				setupFlags: func(f Flags) Flags {
+					NewFlag(f, "foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)
+					return f
+				},
+				name:      "foobar2",
+				alias:     []string{"alpha", "bravo", "charlie"},
 				shortName: "",
 				value:     42,
 			},
@@ -174,12 +206,17 @@ func TestNewFlag(t *testing.T) {
 				flgs = tt.args.setupFlags(tt.args.f)
 			}
 			if tt.shouldPanic {
-				defer func() { rec := recover(); /*fmt.Printf("Ignoring panic: %v\n", rec);*/ _ = rec }() // ignore panic
+				defer func() {
+					rec := recover()
+					if rec != nil {
+						t.Logf("Ignoring panic: %v\n", rec)
+					}
+				}()
 				// the following line should panic, either because the value conversion to string panics,
 				// or because one of the args is invalid for some reason (which varies per test)
 				v := tt.args.value.(int) // panics if value is not an int
 				_ = NewFlag(flgs, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v)
-				t.Error("NewFlag should have panicked, but didn't")
+				t.Errorf("NewFlag test %s should have panicked, but didn't", tt.name)
 			} else {
 				switch v := tt.args.value.(type) {
 				case int:

@@ -78,7 +78,9 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 	// ensure no duplicates among name, aliases, and shortname
 	checker := make([]string, 0)
 	checker = append(checker, nm)
-	checker = append(checker, sn)
+	if len(sn) > 0 {
+		checker = append(checker, sn)
+	}
 	checker = append(checker, al...)
 	chk := make(map[string]struct{})
 	for _, str := range checker {
@@ -88,7 +90,6 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 		}
 		chk[str] = struct{}{}
 	}
-	// create and return the flag
 	flg := &Flag{
 		name:        nm,
 		alias:       al,
@@ -96,6 +97,7 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 		description: desc,
 		value:       value,
 	}
+	// ensure no conflicts with existing flags
 	for flgName, flgValue := range flgs {
 		if flgName == flg.name {
 			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag %s", flgName))
@@ -107,7 +109,7 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 				}
 			}
 		}
-		if flgValue.shortName == flg.shortName {
+		if len(flg.shortName) > 0 && flgValue.shortName == flg.shortName {
 			panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
 		}
 	}
