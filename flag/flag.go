@@ -151,6 +151,10 @@ func GetValue[V FlagTypes](f *Flag) V {
 	return v
 }
 
+func (f *Flag) GetValueAny() any {
+	return f.value
+}
+
 // ParseFlags parses the command line args and sets flags accordingly
 // Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
 // and the Args slice is set to the remaining command line arguments.

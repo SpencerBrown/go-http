@@ -109,6 +109,9 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 	if subcmd == nil {
 		panic("command.SetSub called with nil subcommand")
 	}
+	if subcmd.parent != nil {
+		panic("command.SetSub called with subcommand that already has a parent")
+	}
 	// ensure no duplicates among the names and aliases
 	checker := make([]string, 0)
 	checker = append(checker, subcmd.name)
@@ -126,10 +129,6 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 		chk[str] = struct{}{}
 	}
 	// Add subcommand
-	if subcmd.parent == nil {
 		subcmd.parent = parentcmd
 		parentcmd.sub = append(parentcmd.sub, subcmd)
-	} else {
-		panic("command.SetSub Internal Error: attempt to set subcommand twice")
-	}
 }
