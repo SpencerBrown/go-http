@@ -155,21 +155,6 @@ func (f *Flag) GetValueAny() any {
 	return f.value
 }
 
-// ParseFlags parses the command line args and sets flags accordingly
-// Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
-// and the Args slice is set to the remaining command line arguments.
-// The flag can be --name or -shortname, the value can have an = or not.
-// You must use the --flag=false form to turn off a boolean flag.
-// Integer flags accept 1234, 0664, 0x1234 and may be negative.
-// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
-// Duration flags accept any input valid for time.ParseDuration.
-// []string flags accept a list of comma-separated strings.
-// --help automatically prints out the flags.
-func ParseFlags(fs Flags) error {
-	fmt.Println(fs)
-	return nil
-}
-
 func (fs Flags) String() string {
 	s := strings.Builder{}
 	s.WriteString("Flags:\n")

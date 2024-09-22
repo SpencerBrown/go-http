@@ -24,10 +24,6 @@ func main() {
 	flag.NewFlag(r.Flags, "foo", nil, "f", "first part of foobar", "one")
 	flag.NewFlag(r.Flags, "bar", nil, "b", "second part of foobar", 2)
 	flag.NewFlag(r.Flags, "foobar", fbAlias, "", "is it?", true)
-	if err := flag.ParseFlags(r.Flags); err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
-		os.Exit(1)
-	}
 	if err := r.Run(ctx, true); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)

@@ -270,26 +270,6 @@ func TestNewFlag(t *testing.T) {
 	}
 }
 
-func TestParseFlags(t *testing.T) {
-	type args struct {
-		fs Flags
-	}
-	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := ParseFlags(tt.args.fs); (err != nil) != tt.wantErr {
-				t.Errorf("GetFlags() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
-	}
-}
-
 func TestFlags_String(t *testing.T) {
 	tests := []struct {
 		name string
@@ -384,6 +364,65 @@ func TestGetFlag(t *testing.T) {
 					t.Errorf("Unknown value type %T val %v", tt.args.value, tt.args.value)
 
 				}
+			}
+		})
+	}
+}
+func TestGetValueAny(t *testing.T) {
+	tests := []struct {
+		name  string
+		flag  *Flag
+		want  any
+	}{
+		{
+			name: "intValue",
+			flag: &Flag{
+				name:        "intFlag",
+				alias:       []string{"iF"},
+				shortName:   "i",
+				description: "An integer flag",
+				value:       42,
+			},
+			want: 42,
+		},
+		{
+			name: "stringValue",
+			flag: &Flag{
+				name:        "stringFlag",
+				alias:       []string{"sF"},
+				shortName:   "s",
+				description: "A string flag",
+				value:       "hello",
+			},
+			want: "hello",
+		},
+		{
+			name: "boolValue",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       true,
+			},
+			want: true,
+		},
+		{
+			name: "int64Value",
+			flag: &Flag{
+				name:        "int64Flag",
+				alias:       []string{"i64F"},
+				shortName:   "i64",
+				description: "An int64 flag",
+				value:       int64(64),
+			},
+			want: int64(64),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.flag.GetValueAny(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetValueAny() = %v, want %v", got, tt.want)
 			}
 		})
 	}
