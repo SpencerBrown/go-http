@@ -192,6 +192,5 @@ func (cmd *Command) String() string {
 	builder.WriteString(util.Indent(fmt.Sprintf("Aliases: %s\n", strings.Join(cmd.alias, "'")), 1))
 	builder.WriteString(util.Indent(fmt.Sprintf("Description: %s\n", cmd.description), 1))
 	builder.WriteString(util.Indent(cmd.flags.String(), 1))
-	builder.WriteString("\n")
 	return builder.String()
 }
