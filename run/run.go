@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SpencerBrown/go-http/flag"
+	"github.com/SpencerBrown/go-http/command"
 )
 
 type Runnable interface {
@@ -18,8 +18,7 @@ type Runnable interface {
 }
 
 type Runner struct {
-	Args        []string // command line arguments; args[0] is the command name
-	Flags       flag.Flags
+	Commands    *command.Commands
 	GetEnvVar   func(string) string
 	GetWorkDir  func() (string, error)
 	Input       io.Reader
@@ -42,7 +41,7 @@ func (r *Runner) Run(ctx context.Context, debug bool) error {
 	// there's probably a fancy way of putting some error code in the context
 
 	i := 0
-	le := len(r.Args) - 1
+	le := len(r.Commands.Args()) - 1
 	for {
 		select {
 		case <-ctx.Done():
@@ -55,7 +54,7 @@ func (r *Runner) Run(ctx context.Context, debug bool) error {
 			if le <= 0 {
 				fmt.Fprintln(r.Output, 0)
 			} else {
-				fmt.Fprintln(r.Output, i, r.Args[i])
+				fmt.Fprintln(r.Output, i, r.Commands.Args()[i])
 			}
 		}
 	}
@@ -72,22 +71,11 @@ func (r *Runner) String() string {
 	// 		panic(fmt.Sprintf("Internal error executing template for RunArgs: %v", err))
 	// 	}
 	s.WriteString("---Runner struct---\n")
-	if r.Args == nil || len(r.Args) == 0 {
-		s.WriteString("No command or arguments\n")
-	} else {
-		fmt.Fprintf(&s, "Command: %s\n", r.Args[0])
-		if len(r.Args) == 1 {
-			s.WriteString("No arguments\n")
-		} else {
-			fmt.Fprintf(&s, "Arguments: %v\n", r.Args[1:])
-		}
-	}
+	s.WriteString(r.Commands.String())
 	workdir, err := r.GetWorkDir()
 	if err == nil {
 		fmt.Fprintf(&s, "Working directory: %s\n", workdir)
 	}
-	s.WriteString("Flags:\n")
-	s.WriteString(r.Flags.String())
 	s.WriteString("---Runner struct---\n")
 	return s.String()
 }

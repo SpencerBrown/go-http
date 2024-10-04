@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/SpencerBrown/go-http/flag"
+	"github.com/SpencerBrown/go-http/util"
 )
 
 type Command struct {
@@ -19,6 +20,16 @@ type Command struct {
 type Commands struct {
 	args []string
 	root *Command
+}
+
+// Args returns the command line arguments
+func (cmds *Commands) Args() []string {
+	return cmds.args
+}
+
+// SetArgs sets the command line arguments
+func (cmds *Commands) SetArgs(args []string) {
+	cmds.args = args
 }
 
 // Name returns the command name
@@ -36,7 +47,7 @@ func (cmd *Command) Description() string {
 	return cmd.description
 }
 
-// Flags returns the Flags for the command 
+// Flags returns the Flags for the command
 func (cmd *Command) Flags() flag.Flags {
 	return cmd.flags
 }
@@ -49,7 +60,7 @@ func NewCommands() *Commands {
 	}
 }
 
-// NewCommand creates a new command to be added to the tree
+// NewCommand creates a new command with the given name, aliases, description, and flags
 // command name and any aliases cannot be blank, and cannot duplicate each other
 func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	// do basic checks of parameters
@@ -129,8 +140,8 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 		chk[str] = struct{}{}
 	}
 	// Add subcommand
-		subcmd.parent = parentcmd
-		parentcmd.sub = append(parentcmd.sub, subcmd)
+	subcmd.parent = parentcmd
+	parentcmd.sub = append(parentcmd.sub, subcmd)
 }
 
 // Parse parses the command line args and sets args and flags accordingly
@@ -148,3 +159,39 @@ func Parse(cmds *Commands) error {
 	return nil
 }
 
+func (cmds *Commands) String() string {
+	if cmds == nil {
+		return "Commands: nil\n"
+	}
+	var builder strings.Builder
+	builder.WriteString("Commands:\n")
+	builder.WriteString(fmt.Sprintf("Args: %s\n", strings.Join(cmds.args, ", ")))
+	cmds.root.commandTree(&builder, 0)
+	return builder.String()
+}
+
+func (cmd *Command) commandTree(builder *strings.Builder, indent int) string {
+	if cmd == nil {
+		return "Command: nil\n"
+	}
+	// stringify this command at the indent level
+	builder.WriteString(util.Indent(cmd.String(), indent))
+	// output the subcommands indented recursively
+	for _, subcmd := range cmd.sub {
+		subcmd.commandTree(builder, indent+2)
+	}
+	return builder.String()
+}
+
+func (cmd *Command) String() string {
+	if cmd == nil {
+		return "Command: nil\n"
+	}
+	var builder strings.Builder
+	builder.WriteString("Command: " + cmd.name + "\n")
+	builder.WriteString(util.Indent(fmt.Sprintf("Aliases: %s\n", strings.Join(cmd.alias, "'")), 1))
+	builder.WriteString(util.Indent(fmt.Sprintf("Description: %s\n", cmd.description), 1))
+	builder.WriteString(util.Indent(cmd.flags.String(), 1))
+	builder.WriteString("\n")
+	return builder.String()
+}
