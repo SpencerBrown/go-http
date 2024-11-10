@@ -8,15 +8,33 @@ import (
 	"github.com/SpencerBrown/go-http/util"
 )
 
+// Command represents a command or subcommand in a command/subcommand tree
+// flags represents the flags for this command at this level of the tree
+// parent is the parent command, nil if this is the root command
+// sub is a slice of subcommands at this level of the tree
+// name is the name of the command
+// alias is a slice of aliases for the command
+// description is a description of the command
+// The command name and aliases must be unique among the subtree starting at this command
+//
+// So the syntax is something like:
+//
+//	 command flags subcommand flags subcommand flags args
+//	 where flags start with "-" for short form and "--" for long form followed by the flag name and value, separated by "=" or " "
+//	 and args are the remaining command line arguments after the last flags or after "--" if needed to separate commands from args
+//		and subcommands can be nested arbitrarily deep
+//	 for boolean flags, use --flag=false or -f=false to turn off the flag
 type Command struct {
-	name        string
-	alias       []string
-	description string
-	flags       flag.Flags
-	parent      *Command
-	sub         []*Command
+	name        string     // Name of command
+	alias       []string   // Aliases for command
+	description string     // Description of command
+	flags       flag.Flags // Flags for this command
+	parent      *Command   // Parent command
+	sub         []*Command // Subcommands
 }
 
+// Commands represents a command/subcommand tree and the command line arguments
+// Arguments start at the first unrecognized token, or after the terminator "--"
 type Commands struct {
 	args []string
 	root *Command
@@ -62,20 +80,26 @@ func NewCommands() *Commands {
 
 // NewCommand creates a new command with the given name, aliases, description, and flags
 // command name and any aliases cannot be blank, and cannot duplicate each other
+// and cannot duplicate any other command name or alias in the entire tree
+// flags must be unique among the entire tree
 func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	// do basic checks of parameters
-	if len(strings.TrimSpace(nm)) == 0 {
+	name := strings.TrimSpace(nm)
+	if len(name) == 0 {
 		panic("command.NewCommand called with blank command name")
 	}
-	for _, alias := range al {
-		if len(strings.TrimSpace(alias)) == 0 {
-			panic("command.NewCommand called with a blankj alias")
+	aliases := make([]string, 0)
+	for _, aliasuntrimmed := range al {
+		alias := strings.TrimSpace(aliasuntrimmed)
+		if len(alias) == 0 {
+			panic("command.NewCommand called with a blank alias")
 		}
+		aliases = append(aliases, alias)
 	}
 	// ensure no duplicates among the name and aliases
 	checker := make([]string, 0)
-	checker = append(checker, nm)
-	checker = append(checker, al...)
+	checker = append(checker, name)
+	checker = append(checker, aliases...)
 	chk := make(map[string]struct{})
 	for _, str := range checker {
 		_, ok := chk[str]
@@ -86,8 +110,8 @@ func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	}
 	// create the new command and return it
 	return &Command{
-		name:        nm,
-		alias:       al,
+		name:        name,
+		alias:       aliases,
 		description: desc,
 		flags:       flgs,
 		sub:         make([]*Command, 0),

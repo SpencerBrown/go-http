@@ -77,11 +77,35 @@ func TestNewFlag(t *testing.T) {
 			shouldPanic: true,
 		},
 		{
+			name: "singleCharacterName",
+			args: args{
+				f:         NewFlags(),
+				name:      "x",
+				alias:     []string{},
+				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
 			name: "blankAlias",
 			args: args{
 				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
+				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "singleCharacterAlias",
+			args: args{
+				f:         NewFlags(),
+				name:      "foobar",
+				alias:     []string{"barfoo", "x"},
 				shortName: "",
 				value:     42,
 			},
@@ -190,6 +214,22 @@ func TestNewFlag(t *testing.T) {
 				},
 				name:      "foobar2",
 				alias:     []string{"alpha", "bravo", "charlie"},
+				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagAlias2",
+			args: args{
+				f: NewFlags(),
+				setupFlags: func(f Flags) Flags {
+					NewFlag(f, "foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)
+					return f
+				},
+				name:      "foobar2",
+				alias:     []string{"alpha", "bravo", "foobar"},
 				shortName: "",
 				value:     42,
 			},
@@ -370,9 +410,9 @@ func TestGetFlag(t *testing.T) {
 }
 func TestGetValueAny(t *testing.T) {
 	tests := []struct {
-		name  string
-		flag  *Flag
-		want  any
+		name string
+		flag *Flag
+		want any
 	}{
 		{
 			name: "intValue",

@@ -7,6 +7,7 @@ import (
 )
 
 // Flag is a single flag.
+// The alias must be different from the name and from each other and from the short name.
 type Flag struct {
 	name        string   // name of flag
 	alias       []string // alias names
@@ -16,6 +17,7 @@ type Flag struct {
 }
 
 // Flags is a set of Flag.
+// The key is the name of the flag.
 type Flags map[string]*Flag
 
 // FlagTypes is a constraint on the types of flag values.
@@ -23,7 +25,7 @@ type FlagTypes interface {
 	int | int64 | string | bool
 }
 
-// NewFlags creates a new set of flags.
+// NewFlags creates a new empty set of flags.
 func NewFlags() Flags {
 	return make(Flags)
 }
@@ -52,7 +54,8 @@ func (f *Flag) Description() string {
 // It is a generic function that sets the default value
 // whose type is carried because it is an interface{}.
 // The short name can be null "" meaning no short name, or a single character.
-// The name, short name, and all aliases must not be blank.
+// The name, short name, and all aliases must not be blank. Blanks are trimmed.
+// The name and all aliases must not be a single character.
 // The caller must ensure that the flag name, aliases, and short name
 // don't conflict with any existing flags in the set, or with each other;
 // otherwise panic ensues.
@@ -61,27 +64,35 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 	if flgs == nil {
 		panic("flag.NewFlag called with nil Flags")
 	}
-	if len(sn) > 1 {
+	shortname := strings.TrimSpace(sn)
+	name := strings.TrimSpace(nm)
+	if len(shortname) > 1 {
 		panic("flag.NewFlag called with shortName of 2 characters or more")
 	}
-	if len(sn) == 1 && len(strings.TrimSpace(sn)) == 0 {
-		panic("flag.NewFlag called with blank short name")
-	}
-	if len(strings.TrimSpace(nm)) == 0 {
+	if len(name) == 0 {
 		panic("flag.NewFlag called with blank flag name")
 	}
-	for _, alias := range al {
-		if len(strings.TrimSpace(alias)) == 0 {
+	if len(name) == 1 {
+		panic("flag.NewFlag called with a single-character flag name")
+	}
+	aliases := make([]string, 0)
+	for _, aliasuntrimmed := range al {
+		alias := strings.TrimSpace(aliasuntrimmed)
+		if len(alias) == 0 {
 			panic("flag.NewFlag called with a blank alias")
 		}
+		if len(alias) == 1 {
+			panic("flag.NewFlag called with a single-character alias")
+		}
+		aliases = append(aliases, alias)
 	}
-	// ensure no duplicates among name, aliases, and shortname
+	// ensure no duplicates among name, aliases, and shortname for this flag
 	checker := make([]string, 0)
-	checker = append(checker, nm)
-	if len(sn) > 0 {
-		checker = append(checker, sn)
+	checker = append(checker, name)
+	if len(shortname) > 0 {
+		checker = append(checker, shortname)
 	}
-	checker = append(checker, al...)
+	checker = append(checker, aliases...)
 	chk := make(map[string]struct{})
 	for _, str := range checker {
 		_, ok := chk[str]
@@ -91,9 +102,9 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 		chk[str] = struct{}{}
 	}
 	flg := &Flag{
-		name:        nm,
-		alias:       al,
-		shortName:   sn,
+		name:        name,
+		alias:       aliases,
+		shortName:   shortname,
 		description: desc,
 		value:       value,
 	}
@@ -103,6 +114,9 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag %s", flgName))
 		}
 		for _, newAlias := range flg.alias {
+			if newAlias == flgValue.name {
+				panic(fmt.Sprintf("flag.NewFlag: attempt to add alias %s of flag %s which is also the name of another flag", newAlias, flg.name))
+			}
 			for _, oldAlias := range flgValue.alias {
 				if oldAlias == newAlias {
 					panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
