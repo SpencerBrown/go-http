@@ -168,21 +168,6 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 	parentcmd.sub = append(parentcmd.sub, subcmd)
 }
 
-// Parse parses the command line args and sets args and flags accordingly
-// Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
-// and the Args slice is set to the remaining command line arguments.
-// The flag can be --name or -shortname, the value can have an = or not.
-// You must use the --flag=false form to turn off a boolean flag.
-// Integer flags accept 1234, 0664, 0x1234 and may be negative.
-// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
-// Duration flags accept any input valid for time.ParseDuration.
-// []string flags accept a list of comma-separated strings.
-// --help automatically prints out the flags.
-func Parse(cmds *Commands) error {
-	fmt.Println(cmds)
-	return nil
-}
-
 func (cmds *Commands) String() string {
 	if cmds == nil {
 		return "Commands: nil\n"
