@@ -24,17 +24,32 @@ import (
 //	 and args are the remaining command line arguments after the last flags or after "--" if needed to separate commands from args
 //		and subcommands can be nested arbitrarily deep
 //	 for boolean flags, use --flag=false or -f=false to turn off the flag
+//
+// Arguments start at the first unrecognized token, or after the terminator "--"
+// The --help flag automatically prints out the command syntax and flags
+// The func associated with a Command is what is called when the provided command line maps to this Command
+// The func is given a ParsedCommand with the command line arguments and flags
 type Command struct {
-	name        string     // Name of command
-	alias       []string   // Aliases for command
-	description string     // Description of command
-	flags       flag.Flags // Flags for this command
-	parent      *Command   // Parent command
-	sub         []*Command // Subcommands
+	name        string                     // Name of command
+	alias       []string                   // Aliases for command
+	description string                     // Description of command
+	flags       flag.Flags                 // Flags for this command
+	handler     func(*ParsedCommand) error // Handler for this command
+	parent      *Command                   // Parent command
+	sub         []*Command                 // Subcommands
+}
+
+// ParsedCommand represents the parsed command line arguments and flags
+// args is the command line arguments
+// flags is the flags for the command
+
+type ParsedCommand struct {
+	names []string   // command/subcommand names
+	args  []string   // command line arguments
+	flags flag.Flags // flags for the command
 }
 
 // Commands represents a command/subcommand tree and the command line arguments
-// Arguments start at the first unrecognized token, or after the terminator "--"
 type Commands struct {
 	args []string
 	root *Command
@@ -166,21 +181,6 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 	// Add subcommand
 	subcmd.parent = parentcmd
 	parentcmd.sub = append(parentcmd.sub, subcmd)
-}
-
-// Parse parses the command line args and sets args and flags accordingly
-// Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
-// and the Args slice is set to the remaining command line arguments.
-// The flag can be --name or -shortname, the value can have an = or not.
-// You must use the --flag=false form to turn off a boolean flag.
-// Integer flags accept 1234, 0664, 0x1234 and may be negative.
-// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
-// Duration flags accept any input valid for time.ParseDuration.
-// []string flags accept a list of comma-separated strings.
-// --help automatically prints out the flags.
-func Parse(cmds *Commands) error {
-	fmt.Println(cmds)
-	return nil
 }
 
 func (cmds *Commands) String() string {

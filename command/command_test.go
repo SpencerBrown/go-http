@@ -10,6 +10,7 @@ func TestNewCommands(t *testing.T) {
 	cmds := NewCommands()
 	if cmds == nil {
 		t.Fatal("NewCommands() returned nil")
+		return
 	}
 	if cmds.root != nil {
 		t.Errorf("NewCommands() root = %v, want nil", cmds.root)

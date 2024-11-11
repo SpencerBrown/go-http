@@ -165,10 +165,12 @@ func GetValue[V FlagTypes](f *Flag) V {
 	return v
 }
 
+// GetValueAny gets the value of a flag as an interface{}.
 func (f *Flag) GetValueAny() any {
 	return f.value
 }
 
+// String returns a string representation of a Flag, useful for debugging.
 func (fs Flags) String() string {
 	s := strings.Builder{}
 	s.WriteString("Flags:\n")
