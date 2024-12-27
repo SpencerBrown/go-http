@@ -155,6 +155,21 @@ func (f *Flag) GetValueAny() any {
 	return f.value
 }
 
+//FindFlag finds a flag by name or alias.
+func (flgs Flags) FindFlag(name string) *Flag {
+	for _, f := range flgs {
+		if f.name == name {
+			return f
+		}
+		for _, alias := range f.alias {
+			if alias == name {
+				return f
+			}
+		}
+	}
+	return nil
+}
+
 func (fs Flags) String() string {
 	s := strings.Builder{}
 	s.WriteString("Flags:\n")
