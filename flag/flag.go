@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"strings"
 	"text/tabwriter"
+	"unicode/utf8"
 )
 
 // Flag is a single flag.
-// The alias must be different from the name and from each other and from the short name.
+// The aliases and the name must be different from each other, and cannot be a single character.
+// The differences must be case insensitive; the names and aliases are converted to lower case.
+// The short name must be a single character, or null "". It is case sensitive.
 type Flag struct {
 	name        string   // name of flag
 	alias       []string // alias names
@@ -16,8 +19,9 @@ type Flag struct {
 	value       any      // default value and type of flag
 }
 
-// Flags is a set of Flag.
+// Flags is a set of *Flag.
 // The key is the name of the flag.
+// The names and aliases and short names must be unique among all flags in the set.
 type Flags map[string]*Flag
 
 // FlagTypes is a constraint on the types of flag values.
@@ -52,55 +56,52 @@ func (f *Flag) Description() string {
 
 // NewFlag creates a new flag and adds it to a set of flags.
 // It is a generic function that sets the default value
-// whose type is carried because it is an interface{}.
-// The short name can be null "" meaning no short name, or a single character.
+// whose type is carried because it is saved as an interface{}.
 // The name, short name, and all aliases must not be blank. Blanks are trimmed.
-// The name and all aliases must not be a single character.
-// The caller must ensure that the flag name, aliases, and short name
-// don't conflict with any existing flags in the set, or with each other;
-// otherwise panic ensues.
+// If anthing is not valid, it panics.
 func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc string, value V) *Flag {
 	// do basic checks of the parameters
 	if flgs == nil {
 		panic("flag.NewFlag called with nil Flags")
 	}
 	shortname := strings.TrimSpace(sn)
-	name := strings.TrimSpace(nm)
-	if len(shortname) > 1 {
-		panic("flag.NewFlag called with shortName of 2 characters or more")
+	shortnameLength := utf8.RuneCountInString(shortname)
+	name := strings.ToLower(strings.TrimSpace(nm))
+	nameLength := utf8.RuneCountInString(name)
+	if shortnameLength > 1 {
+		panic(fmt.Sprintf("flag.NewFlag called with shortName of 2 runes or more: %s", shortname))
 	}
-	if len(name) == 0 {
+	if nameLength == 0 {
 		panic("flag.NewFlag called with blank flag name")
 	}
-	if len(name) == 1 {
-		panic("flag.NewFlag called with a single-character flag name")
+	if nameLength == 1 {
+		panic(fmt.Sprintf("flag.NewFlag called with a single-rune flag name: %s", name))
 	}
 	aliases := make([]string, 0)
 	for _, aliasuntrimmed := range al {
-		alias := strings.TrimSpace(aliasuntrimmed)
-		if len(alias) == 0 {
+		alias := strings.ToLower(strings.TrimSpace(aliasuntrimmed))
+		aliasLength := utf8.RuneCountInString(alias)
+		if aliasLength == 0 {
 			panic("flag.NewFlag called with a blank alias")
 		}
-		if len(alias) == 1 {
-			panic("flag.NewFlag called with a single-character alias")
+		if aliasLength == 1 {
+			panic(fmt.Sprintf("flag.NewFlag called with a single-rune alias: %s", alias))
 		}
 		aliases = append(aliases, alias)
 	}
-	// ensure no duplicates among name, aliases, and shortname for this flag
+	// ensure no duplicates among name and aliases for this flag
 	checker := make([]string, 0)
 	checker = append(checker, name)
-	if len(shortname) > 0 {
-		checker = append(checker, shortname)
-	}
 	checker = append(checker, aliases...)
 	chk := make(map[string]struct{})
 	for _, str := range checker {
 		_, ok := chk[str]
 		if ok {
-			panic(fmt.Sprintf("flag.NewFlag: duplicate name %s", str))
+			panic(fmt.Sprintf("flag.NewFlag: duplicate name/alias %s", str))
 		}
 		chk[str] = struct{}{}
 	}
+	// all seems OK for this flag, create the flag
 	flg := &Flag{
 		name:        name,
 		alias:       aliases,
@@ -111,7 +112,7 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 	// ensure no conflicts with existing flags
 	for flgName, flgValue := range flgs {
 		if flgName == flg.name {
-			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag %s", flgName))
+			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag name %s", flgName))
 		}
 		for _, newAlias := range flg.alias {
 			if newAlias == flgValue.name {
@@ -127,17 +128,18 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 			panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
 		}
 	}
+	// no conflicts, add the flag
 	flgs[nm] = flg
 	return flg
 }
 
-// GetFlagOK gets a flag, returning ok as false if the flag does not exist.
+// GetFlagOK gets a flag by name, returning ok as false if the flag does not exist.
 func GetFlagOK(f Flags, name string) (*Flag, bool) {
 	flg, ok := f[name]
 	return flg, ok
 }
 
-// GetFlag gets a flag, panics if the flag does not exist.
+// GetFlag gets a flag by name, panics if the flag does not exist.
 func GetFlag(f Flags, name string) *Flag {
 	flg, ok := f[name]
 	if ok {
@@ -147,15 +149,15 @@ func GetFlag(f Flags, name string) *Flag {
 	}
 }
 
-// GetValueOK is a generic function to get a flag and the value of a flag.
-// ok is false if the flag does not exist, or the type of the value is not what was expected.
+// GetValueOK is a generic function to get the value of a flag.
+// ok is false if the type of the value is not what was expected.
 func GetValueOK[V FlagTypes](f *Flag) (V, bool) {
 	v, ok := f.value.(V)
 	return v, ok
 }
 
-// GetValue is a generic function to get a Flag object, and the properly typed value of the flag.
-// It panics if the flag does not exist, or type of the flag value is not what was expected.
+// GetValue is a generic function to get the properly typed value of the flag.
+// It panics if the type of the flag value is not what was expected.
 func GetValue[V FlagTypes](f *Flag) V {
 	v, ok := f.value.(V)
 	if !ok {
@@ -170,10 +172,12 @@ func (f *Flag) GetValueAny() any {
 	return f.value
 }
 
-//FindFlag finds a flag by name or alias.
-func (flgs Flags) FindFlag(name string) *Flag {
+// FindFlag finds a flag within a flag set by name or alias or shortname.
+// It returns nil if the flag is not found.
+func (flgs Flags) FindFlag(nm string) *Flag {
+	name := strings.ToLower(strings.TrimSpace(nm))
 	for _, f := range flgs {
-		if f.name == name {
+		if f.name == name || f.shortName == name {
 			return f
 		}
 		for _, alias := range f.alias {

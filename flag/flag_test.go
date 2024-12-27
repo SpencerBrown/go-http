@@ -45,8 +45,8 @@ func TestNewFlag(t *testing.T) {
 				value:       42,
 			},
 			want: Flag{
-				name:        "IntFlag",
-				alias:       []string{"IF", "IntFlg"},
+				name:        "intflag",
+				alias:       []string{"if", "intflg"},
 				shortName:   "I",
 				description: "Int Flag",
 				value:       42,
@@ -81,6 +81,18 @@ func TestNewFlag(t *testing.T) {
 			args: args{
 				f:         NewFlags(),
 				name:      "x",
+				alias:     []string{},
+				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "singleRuneName",
+			args: args{
+				f:         NewFlags(),
+				name:      "✓", // check mark U+2713
 				alias:     []string{},
 				shortName: "",
 				value:     42,
@@ -183,6 +195,22 @@ func TestNewFlag(t *testing.T) {
 				name:      "foobar",
 				alias:     []string{},
 				shortName: "",
+				value:     42,
+			},
+			want:        Flag{},
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagName2",
+			args: args{
+				f: NewFlags(),
+				setupFlags: func(f Flags) Flags {
+					NewFlag(f, "foobar\u2713", []string{}, "f", "some description", 42)
+					return f
+				},
+				name:      "foobar✓",
+				alias:     []string{},
+				shortName: "f",
 				value:     42,
 			},
 			want:        Flag{},
@@ -379,12 +407,13 @@ func TestGetFlag(t *testing.T) {
 				value:       42,
 			},
 			want: &Flag{
-				name:        "ExistingFlag",
-				alias:       []string{"EF", "ExFlg"},
+				name:        "existingflag",
+				alias:       []string{"ef", "exflg"},
 				shortName:   "E",
 				description: "Existing Flag",
 				value:       42,
 			},
+			shouldPanic: false,
 		},
 	}
 	for _, tt := range tests {
@@ -463,6 +492,117 @@ func TestGetValueAny(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.flag.GetValueAny(); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("GetValueAny() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+func TestFindFlag(t *testing.T) {
+	tests := []struct {
+		name     string
+		flags    Flags
+		search   string
+		expected *Flag
+	}{
+		{
+			name: "findByName",
+			flags: Flags{
+				"flag1\u2713": &Flag{
+					name:        "flag1\u2713",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			search: " Flag1\u2713",
+			expected: &Flag{
+				name:        "flag1\u2713",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+		},
+		{
+			name: "findByAlias",
+			flags: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			search: "f1",
+			expected: &Flag{
+				name:        "flag1",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+		},
+		{
+			name: "notFound",
+			flags: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			search:   "nonexistent",
+			expected: nil,
+		},
+		{
+			name: "findByShortName",
+			flags: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			search:   "f",
+			expected:  &Flag{
+				name:        "flag1",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+		},
+		{
+			name: "findByAliasCaseInsensitive",
+			flags: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			search: "F1",
+			expected: &Flag{
+				name:        "flag1",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := tt.flags.FindFlag(tt.search)
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Errorf("FindFlag() = %v, want %v", result, tt.expected)
 			}
 		})
 	}
