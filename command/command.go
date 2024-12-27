@@ -203,7 +203,7 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 // Duration flags accept any input valid for time.ParseDuration.
 // []string flags accept a list of comma-separated strings.
 // --help automatically prints out the flags for that subcommand branch of the tree.
-func Parse(cmds *Commands) error {
+func Parse2(cmds *Commands) error {
 
 	if cmds == nil {
 		return fmt.Errorf("command.Parse called with nil Commands")

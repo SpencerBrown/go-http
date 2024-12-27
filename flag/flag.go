@@ -185,21 +185,6 @@ func (flgs Flags) FindFlag(name string) *Flag {
 	return nil
 }
 
-//FindFlag finds a flag by name or alias.
-func (flgs Flags) FindFlag(name string) *Flag {
-	for _, f := range flgs {
-		if f.name == name {
-			return f
-		}
-		for _, alias := range f.alias {
-			if alias == name {
-				return f
-			}
-		}
-	}
-	return nil
-}
-
 // String returns a string representation of a Flag, useful for debugging.
 func (fs Flags) String() string {
 	s := strings.Builder{}

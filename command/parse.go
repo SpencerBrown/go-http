@@ -59,6 +59,7 @@ func Parse(cmds *Commands, cargs []string) error {
 				// this is a short flag
 				flagName = carg[1:]
 			}
+			fmt.Println("Flag:", flagName)
 		} else {
 			// this is a subcommand or the start of the arguments
 			for _, sub := range cmd.sub {
