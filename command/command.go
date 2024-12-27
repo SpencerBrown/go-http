@@ -183,6 +183,67 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 	parentcmd.sub = append(parentcmd.sub, subcmd)
 }
 
+// Parse parses the raw args from the Commands.Args() slice and sets the flags and args accordingly
+// The general structure of the command line is:
+// command [flags] [subcommand] [flags] [subcommand] [flags] [args]
+// Flags cannot be duplicated among the command and its subcommands on one path of the command tree,
+// but flags can be duplicated among different paths of the command tree.
+// It identifies the subcommands being used.
+// For each argument:
+// - If the argument is a flag, it is parsed and set in the flag.Flags struct for the current command.
+// - If the argument is not a flag, we check if it is a subcommand.  If it is, we set the subcommand as the current command.
+// - If the argument is not a flag or a subcommand, it is added to the args slice, and we stop parsing for flags and subcommands.
+// Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
+// and the Args slice is set to the remaining command line arguments.
+// The flag can be --name or -shortname, the value can have an = or not.
+// You must use the --flag=false form to turn off a boolean flag.
+// -- flag is used to separate the flags from the arguments.
+// Integer flags accept 1234, 0664, 0x1234 and may be negative.
+// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
+// Duration flags accept any input valid for time.ParseDuration.
+// []string flags accept a list of comma-separated strings.
+// --help automatically prints out the flags for that subcommand branch of the tree.
+func Parse(cmds *Commands) error {
+
+	if cmds == nil {
+		return fmt.Errorf("command.Parse called with nil Commands")
+	}
+	currentCmd := cmds.root
+	if currentCmd == nil {
+		return fmt.Errorf("command.Parse called with nil root Command")
+	}
+	// parse the subcommands, flags, and args
+	iArg := 0
+	for _, arg := range cmds.args {
+		iArg++
+		if arg == "--" {
+			// stop parsing flags
+			break
+		}
+		if strings.HasPrefix(arg, "--") {
+			// find the flag
+		}
+	}
+	// set the remaining args
+	cmds.args = cmds.args[iArg+1:]
+	return nil
+}
+
+// FindFlag finds a flag in the command/subcommand tree
+// It searches the current command and its parent commands for the flag
+func findFlag(cmd *Command, flagName string) *flag.Flag {
+	if cmd == nil {
+		return nil
+	}
+	// find the flag at this level of the command tree
+	f := cmd.flags.FindFlag(flagName)
+	if f != nil {
+		return f
+	}	
+	// find the flag in the parent command
+	return findFlag(cmd.parent, flagName)
+}
+
 func (cmds *Commands) String() string {
 	if cmds == nil {
 		return "Commands: nil\n"
