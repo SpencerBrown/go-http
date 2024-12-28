@@ -54,16 +54,16 @@ func (f *Flag) Description() string {
 	return f.description
 }
 
-// NewFlag creates a new flag and adds it to a set of flags.
+// NewFlag creates a new flag.
 // It is a generic function that sets the default value
 // whose type is carried because it is saved as an interface{}.
-// The name, short name, and all aliases must not be blank. Blanks are trimmed.
+// The name and all aliases must not be blank. Blanks are trimmed.
+// The name and aliases are case insensitive, must be at least two characters, and must be unique.
+// The short name is case sensitive and must be a single character or the null string.
+// Unicode characters are supported.
 // If anthing is not valid, it panics.
-func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc string, value V) *Flag {
+func NewFlag[V FlagTypes](nm string, al []string, sn string, desc string, value V) *Flag {
 	// do basic checks of the parameters
-	if flgs == nil {
-		panic("flag.NewFlag called with nil Flags")
-	}
 	shortname := strings.TrimSpace(sn)
 	shortnameLength := utf8.RuneCountInString(shortname)
 	name := strings.ToLower(strings.TrimSpace(nm))
@@ -109,27 +109,6 @@ func NewFlag[V FlagTypes](flgs Flags, nm string, al []string, sn string, desc st
 		description: desc,
 		value:       value,
 	}
-	// ensure no conflicts with existing flags
-	for flgName, flgValue := range flgs {
-		if flgName == flg.name {
-			panic(fmt.Sprintf("flag.NewFlag: attempt to add already existing flag name %s", flgName))
-		}
-		for _, newAlias := range flg.alias {
-			if newAlias == flgValue.name {
-				panic(fmt.Sprintf("flag.NewFlag: attempt to add alias %s of flag %s which is also the name of another flag", newAlias, flg.name))
-			}
-			for _, oldAlias := range flgValue.alias {
-				if oldAlias == newAlias {
-					panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
-				}
-			}
-		}
-		if len(flg.shortName) > 0 && flgValue.shortName == flg.shortName {
-			panic(fmt.Sprintf("flag.NewFlag: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
-		}
-	}
-	// no conflicts, add the flag
-	flgs[nm] = flg
 	return flg
 }
 
@@ -172,6 +151,32 @@ func (f *Flag) GetValueAny() any {
 	return f.value
 }
 
+// AddFlag adds a flag to a set of flags.
+func (flgs Flags) AddFlag(flg *Flag) Flags {
+	// ensure no conflicts with existing flags
+	for flgName, flgValue := range flgs {
+		if flgName == flg.name {
+			panic(fmt.Sprintf("flag.AddFlag: attempt to add already existing flag name %s", flgName))
+		}
+		for _, newAlias := range flg.alias {
+			if newAlias == flgValue.name {
+				panic(fmt.Sprintf("flag.AddFlag: attempt to add alias %s of flag %s which is also the name of another flag", newAlias, flg.name))
+			}
+			for _, oldAlias := range flgValue.alias {
+				if oldAlias == newAlias {
+					panic(fmt.Sprintf("flag.AddFlag: attempt to add flag %s with alias %s which is also an alias for flag %s", flg.name, newAlias, flgName))
+				}
+			}
+		}
+		if len(flg.shortName) > 0 && flgValue.shortName == flg.shortName {
+			panic(fmt.Sprintf("flag.AddFlag: attempt to add flag %s with identical shortname %s as flag %s", flg.name, string(flg.shortName), flgName))
+		}
+	}
+	// no conflicts, add the flag
+	flgs[flg.name] = flg
+	return flgs
+}
+
 // FindFlag finds a flag within a flag set by name or alias or shortname.
 // It returns nil if the flag is not found.
 func (flgs Flags) FindFlag(nm string) *Flag {
@@ -185,6 +190,70 @@ func (flgs Flags) FindFlag(nm string) *Flag {
 				return f
 			}
 		}
+	}
+	return nil
+}
+
+// CheckFlags compares two sets of flags to ensure there are no duplicates.
+// It returns true if there are no duplicates, false if there are.
+func CheckFlagsForDuplicates(flgs1 Flags, flgs2 Flags) bool {
+	allNames := make([]string, 0)
+	for name, flg := range flgs1 {
+		allNames = append(allNames, name)
+		allNames = append(allNames, flg.alias...)
+		allNames = append(allNames, flg.shortName)	
+	}
+	for name, flg := range flgs2 {
+		allNames = append(allNames, name)
+		allNames = append(allNames, flg.alias...)
+		allNames = append(allNames, flg.shortName)	
+	}
+	checker := make(map[string]struct{})
+	for _, nm := range allNames {
+		_, ok := checker[nm]
+		if ok {
+			return false
+		}
+		checker[nm] = struct{}{}
+	}
+	return true
+}
+
+// MergeFlags merges one set of flags into another.
+func MergeFlags(flgs1 Flags, flgs2 Flags) {
+	for name, flg := range flgs2 {
+		flgs1[name] = flg
+	}
+}
+
+// ParseValue sets the value of a flag from a string.
+func (f *Flag) ParseValue(s string) error {
+	switch v := f.value.(type) {
+	case int:
+		n, err := fmt.Sscanf(s, "%d", &v)
+		if err != nil || n != 1 {
+			return fmt.Errorf("flag.ParseValue: could not parse %s as int", s)
+		}
+		f.value = v
+	case int64:
+		n, err := fmt.Sscanf(s, "%d", &v)
+		if err != nil || n != 1 {
+			return fmt.Errorf("flag.ParseValue: could not parse %s as int64", s)
+		}
+		f.value = v
+	case string:
+		f.value = s
+	case bool:
+		switch s        {
+		case "true", "True", "TRUE", "t", "T", "1":
+			f.value = true
+		case "false", "False", "FALSE", "f", "F", "0":	
+			f.value = false
+		default: 
+			return fmt.Errorf("flag.ParseValue: could not parse %s as bool", s)
+		}
+	default:
+		panic(fmt.Sprintf("flag.ParseValue internal error: unknown type %T", v))
 	}
 	return nil
 }

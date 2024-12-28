@@ -1,86 +1,82 @@
 package command
 
 import (
-	"reflect"
 	"testing"
+
+	"github.com/SpencerBrown/go-http/flag"
 )
 
 func TestParse(t *testing.T) {
-	cmds := &Commands{
-		args: []string{},
-		root: &Command{
-			name:  "root",
-			alias: []string{"r"},
-		},
-	}
-
 	tests := []struct {
-		name     string
-		commands *Commands
-		args     []string
-		want     *Commands
-		wantErr  bool
+		name      string
+		cmds      []string
+		flgs      []string
+		args      []string
+		wantNames []string
+		wantArgs  []string
+		wantFlags flag.Flags
+		wantErr   bool
 	}{
-		{"NilCommands", nil, nil, nil, true},
-		{"NilRootCommand", &Commands{}, nil, nil, true},
-		{"NilArgs", cmds, nil, nil, true},
-		{"EmptyArgs", cmds, []string{}, nil, true},
-		{"BlankArg", cmds, []string{"\n"}, nil, true},
-		{"UnrecognizedCommand", cmds, []string{"unknown"}, nil, true},
-		{"RecognizedCommand", cmds, []string{"root"},
-			&Commands{
-				args: []string{},
-				root: &Command{
-					name:  "root",
-					alias: []string{"r"},
-				},
-			}, false,
+		{
+			name:    "no cmds",
+			cmds:    []string{},
+			wantErr: true,
 		},
-		{"RecognizedAlias", cmds, []string{"r"},
-			&Commands{
-				args: []string{},
-				root: &Command{
-					name:  "root",
-					alias: []string{"r"},
-				},
-			}, false,
+		{
+			name:      "no flags or args",
+			cmds:      []string{"root"},
+			wantNames: []string{"root"},
+			wantArgs:  []string{},
+			wantErr:   false,
 		},
-		{"EndOfFlags", cmds, []string{"root", "--", "arg1", "arg2"},
-			&Commands{
-				args: []string{"arg1", "arg2"},
-				root: &Command{
-					name:  "root",
-					alias: []string{"r"},
-				},
-			}, false,
+		{
+			name:      "single command, flags and args with equal sign",
+			cmds:      []string{"root"},
+			flgs:      []string{"flag1", "value1", "flag2", "value2"},
+			args:      []string{"--flag1=value1", "--flag2=value2", "arg1", "arg2"},
+			wantNames: []string{"root"},
+			wantArgs:  []string{"arg1", "arg2"},
+			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag1", nil, "", "", "value1")).AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
+			wantErr:   false,
 		},
-		{"StartOfArgs", cmds, []string{"root", "arg1", "arg2"},
-			&Commands{
-				args: []string{"arg1", "arg2"},
-				root: &Command{
-					name:  "root",
-					alias: []string{"r"},
-				},
-			}, false,
+		{
+			name:      "subcommand, flags and args",
+			cmds:      []string{"root", "sub"},
+			args:      []string{"sub", "--flag2=value2", "arg1", "arg2"},
+			wantNames: []string{"root", "sub"},
+			wantArgs:  []string{"arg1", "arg2"},
+			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
+			wantErr:   false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Parse(tt.commands, tt.args)
+			got, err := Parse(tt.cmds)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
 			if err == nil {
-				if tt.wantErr      {
-					t.Errorf("Parse() error = nil, wantErr %v", tt.wantErr)
-				} else {
-					if !reflect.DeepEqual(tt.commands, tt.want) {
-						t.Errorf("Parse() got = %v, want %v", tt.commands, tt.want)
-					}
+				if !equalSlices(got.names, tt.wantNames) {
+					t.Errorf("Parse() names = %v, want %v", got.names, tt.wantNames)
 				}
-			} else {
-				if !tt.wantErr {
-					t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+				if !equalSlices(got.args, tt.wantArgs) {
+					t.Errorf("Parse() args = %v, want %v", got.args, tt.wantArgs)
 				}
 			}
 		})
 	}
+}
+
+func equalSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

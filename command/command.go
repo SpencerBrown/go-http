@@ -3,9 +3,9 @@ package command
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/SpencerBrown/go-http/flag"
-	"github.com/SpencerBrown/go-http/util"
 )
 
 // Command represents a command or subcommand in a command/subcommand tree
@@ -37,16 +37,6 @@ type Command struct {
 	handler     func(*ParsedCommand) error // Handler for this command
 	parent      *Command                   // Parent command
 	sub         []*Command                 // Subcommands
-}
-
-// ParsedCommand represents the parsed command line arguments and flags
-// args is the command line arguments
-// flags is the flags for the command
-
-type ParsedCommand struct {
-	names []string   // command/subcommand names
-	args  []string   // command line arguments
-	flags flag.Flags // flags for the command
 }
 
 // Commands represents a command/subcommand tree and the command line arguments
@@ -95,18 +85,21 @@ func NewCommands() *Commands {
 
 // NewCommand creates a new command with the given name, aliases, description, and flags
 // command name and any aliases cannot be blank, and cannot duplicate each other
+// command name and aliases are case insensitive and can include unicode characters
 // and cannot duplicate any other command name or alias in the entire tree
-// flags must be unique among the entire tree
+// flags must be unique among the path from this command up to the root command
 func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	// do basic checks of parameters
-	name := strings.TrimSpace(nm)
-	if len(name) == 0 {
+	name := strings.ToLower(strings.TrimSpace(nm))
+	nameLength := utf8.RuneCountInString(name)
+	if nameLength == 0 {
 		panic("command.NewCommand called with blank command name")
 	}
 	aliases := make([]string, 0)
 	for _, aliasuntrimmed := range al {
-		alias := strings.TrimSpace(aliasuntrimmed)
-		if len(alias) == 0 {
+		alias := strings.ToLower(strings.TrimSpace(aliasuntrimmed))
+		aliasLength := utf8.RuneCountInString(alias)
+		if aliasLength == 0 {
 			panic("command.NewCommand called with a blank alias")
 		}
 		aliases = append(aliases, alias)
@@ -149,8 +142,8 @@ func (cmds *Commands) SetRoot(cmd *Command) {
 }
 
 // SetSub adds a subcommand to the command/subcommand tree
-// We check to ensure that none of the subcommands at this level of the tree
-// duplicate each others' names or aliases
+// We check to ensure that none of the subcommands at this level of the tree or above
+// duplicate each others' names or aliases or flags
 func (parentcmd *Command) SetSub(subcmd *Command) {
 	// basic checks
 	if parentcmd == nil {
@@ -163,119 +156,33 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 		panic("command.SetSub called with subcommand that already has a parent")
 	}
 	// ensure no duplicates among the names and aliases
-	checker := make([]string, 0)
-	checker = append(checker, subcmd.name)
-	checker = append(checker, subcmd.alias...)
+	nameList := make([]string, 0)
+	nameList = append(nameList, subcmd.name)
+	nameList = append(nameList, subcmd.alias...)
 	for _, cmd := range parentcmd.sub {
-		checker = append(checker, cmd.name)
-		checker = append(checker, cmd.alias...)
+		nameList = append(nameList, cmd.name)
+		nameList = append(nameList, cmd.alias...)
 	}
-	chk := make(map[string]struct{})
-	for _, str := range checker {
-		_, ok := chk[str]
+	for cmd := parentcmd; cmd != nil; cmd = cmd.parent {
+		nameList = append(nameList, cmd.name)
+		nameList = append(nameList, cmd.alias...)
+	}
+	dupNameCheck := make(map[string]struct{})
+	for _, str := range nameList {
+		_, ok := dupNameCheck[str]
 		if ok {
 			panic(fmt.Sprintf("command.SetSub called with duplicate name or alias %s", str))
 		}
-		chk[str] = struct{}{}
+		dupNameCheck[str] = struct{}{}
+	}
+	// ensure no duplicates among the flags for this command and its parent commands
+	thisFlags := subcmd.flags
+	for cmd := parentcmd; cmd != nil; cmd = cmd.parent {
+		if !flag.CheckFlagsForDuplicates(thisFlags, cmd.flags) {
+			panic("command.SetSub called with subcommand that has duplicate flags with a parent command")
+		}
 	}
 	// Add subcommand
 	subcmd.parent = parentcmd
 	parentcmd.sub = append(parentcmd.sub, subcmd)
-}
-
-// Parse parses the raw args from the Commands.Args() slice and sets the flags and args accordingly
-// The general structure of the command line is:
-// command [flags] [subcommand] [flags] [subcommand] [flags] [args]
-// Flags cannot be duplicated among the command and its subcommands on one path of the command tree,
-// but flags can be duplicated among different paths of the command tree.
-// It identifies the subcommands being used.
-// For each argument:
-// - If the argument is a flag, it is parsed and set in the flag.Flags struct for the current command.
-// - If the argument is not a flag, we check if it is a subcommand.  If it is, we set the subcommand as the current command.
-// - If the argument is not a flag or a subcommand, it is added to the args slice, and we stop parsing for flags and subcommands.
-// Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
-// and the Args slice is set to the remaining command line arguments.
-// The flag can be --name or -shortname, the value can have an = or not.
-// You must use the --flag=false form to turn off a boolean flag.
-// -- flag is used to separate the flags from the arguments.
-// Integer flags accept 1234, 0664, 0x1234 and may be negative.
-// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
-// Duration flags accept any input valid for time.ParseDuration.
-// []string flags accept a list of comma-separated strings.
-// --help automatically prints out the flags for that subcommand branch of the tree.
-func Parse2(cmds *Commands) error {
-
-	if cmds == nil {
-		return fmt.Errorf("command.Parse called with nil Commands")
-	}
-	currentCmd := cmds.root
-	if currentCmd == nil {
-		return fmt.Errorf("command.Parse called with nil root Command")
-	}
-	// parse the subcommands, flags, and args
-	iArg := 0
-	for _, arg := range cmds.args {
-		iArg++
-		if arg == "--" {
-			// stop parsing flags
-			break
-		}
-		if strings.HasPrefix(arg, "--") {
-			// find the flag
-		}
-	}
-	// set the remaining args
-	cmds.args = cmds.args[iArg+1:]
-	return nil
-}
-
-// FindFlag finds a flag in the command/subcommand tree
-// It searches the current command and its parent commands for the flag
-func findFlag(cmd *Command, flagName string) *flag.Flag {
-	if cmd == nil {
-		return nil
-	}
-	// find the flag at this level of the command tree
-	f := cmd.flags.FindFlag(flagName)
-	if f != nil {
-		return f
-	}	
-	// find the flag in the parent command
-	return findFlag(cmd.parent, flagName)
-}
-
-func (cmds *Commands) String() string {
-	if cmds == nil {
-		return "Commands: nil\n"
-	}
-	var builder strings.Builder
-	builder.WriteString("Commands:\n")
-	builder.WriteString(fmt.Sprintf("Args: %s\n", strings.Join(cmds.args, ", ")))
-	cmds.root.commandTree(&builder, 0)
-	return builder.String()
-}
-
-func (cmd *Command) commandTree(builder *strings.Builder, indent int) string {
-	if cmd == nil {
-		return "Command: nil\n"
-	}
-	// stringify this command at the indent level
-	builder.WriteString(util.Indent(cmd.String(), indent))
-	// output the subcommands indented recursively
-	for _, subcmd := range cmd.sub {
-		subcmd.commandTree(builder, indent+2)
-	}
-	return builder.String()
-}
-
-func (cmd *Command) String() string {
-	if cmd == nil {
-		return "Command: nil\n"
-	}
-	var builder strings.Builder
-	builder.WriteString("Command: " + cmd.name + "\n")
-	builder.WriteString(util.Indent(fmt.Sprintf("Aliases: %s\n", strings.Join(cmd.alias, "'")), 1))
-	builder.WriteString(util.Indent(fmt.Sprintf("Description: %s\n", cmd.description), 1))
-	builder.WriteString(util.Indent(cmd.flags.String(), 1))
-	return builder.String()
 }

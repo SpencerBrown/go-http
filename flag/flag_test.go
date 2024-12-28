@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func something() {
+	flgs := NewFlags()
+	flg := NewFlag("flag1", []string{"f1", "flg1"}, "f", "Flag 1", 1)
+	_ = flgs.AddFlag(flg)
+	z := y.AddFlag(NewFlag("flag1", nil, "", "", "value1"))
+	x := NewFlags().AddFlag(NewFlag("flag1", nil, "", "", "value1"))
+}
+
 func TestNewFlags(t *testing.T) {
 	t.Run("NewFlags", func(t *testing.T) {
 		want := make(Flags)
@@ -36,8 +44,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "newIntFlag",
 			args: args{
-				f:           NewFlags(),
-				setupFlags:  nil,
 				name:        "IntFlag",
 				alias:       []string{"IF", "IntFlg"},
 				shortName:   "I",

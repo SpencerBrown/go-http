@@ -390,12 +390,14 @@ func TestSetSub(t *testing.T) {
 	}
 	SetSubTester1(t)
 	SetSubTester2(t)
+	SetSubTester3(t)
 }
 
 func equalCommand(a, b *Command) bool {
 	return a.Name() == b.Name() && equalStringSlices(a.Alias(), b.Alias()) && a.Description() == b.Description() && equalFlags(a.Flags(), b.Flags())
 }
 
+// SetSubTester1 tests the SetSub method for a valid subcommand
 func SetSubTester1(t *testing.T) {
 	rootCmd := NewCommand("root", []string{"r"}, "root command", flag.NewFlags())
 	subCmd := NewCommand("sub", []string{"s"}, "sub command", flag.NewFlags())
@@ -419,6 +421,8 @@ func SetSubTester1(t *testing.T) {
 	}()
 	rootCmd.SetSub(duplicateCmd)
 }
+
+// SetSubTester2 tests the SetSub method for a duplicate subcommand
 func SetSubTester2(t *testing.T) {
 	rootCmd := NewCommand("root", []string{"r"}, "root command", flag.NewFlags())
 	subCmd := NewCommand("sub", []string{"s"}, "sub command", flag.NewFlags())
@@ -430,6 +434,25 @@ func SetSubTester2(t *testing.T) {
 		}
 	}()
 	rootCmd.SetSub(subCmd)
+}
+
+// SetSubTester3 tests the SetSub method for duplicate flags between subcommands
+func SetSubTester3(t *testing.T) {
+	rootCmd := NewCommand("root", []string{"r"}, "root command", flag.NewFlags())
+	subCmd1 := NewCommand("sub1", []string{"s1"}, "sub1 command", flag.NewFlags())
+	subCmd2 := NewCommand("sub2", []string{"s2"}, "sub2 command", flag.NewFlags())
+
+	flag.NewFlag(rootCmd.Flags(), "aflag", nil, "f", "A Flag", 42)
+	flag.NewFlag(subCmd1.Flags(), "aflag", nil, "g", "Another Flag", 43)
+
+	defer func() {
+		if r := recover(); r == nil {
+			t.Errorf("SetSub() did not panic on duplicate flags between subcommands")
+		}
+	}()
+	rootCmd.SetSub(subCmd1)
+	rootCmd.SetSub(subCmd2)
+	subCmd2.SetSub(subCmd1)
 }
 
 func equalStringSlices(a, b []string) bool {
