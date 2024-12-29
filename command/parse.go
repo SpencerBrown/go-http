@@ -16,7 +16,7 @@ type ParsedCommand struct {
 	flags flag.Flags // flags for the command
 }
 
-// Parse parses the raw args from the Commands.Args() slice and sets the flags and args accordingly
+// Parse parses the raw args and sets the flags and args accordingly
 // The general structure of the command line is:
 // command [flags] [subcommand] [flags] [subcommand] [flags] [args]
 // Flags cannot be duplicated among the command and its subcommands on one path of the command tree,
@@ -36,19 +36,16 @@ type ParsedCommand struct {
 // Duration flags accept any input valid for time.ParseDuration.
 // []string flags accept a list of comma-separated strings.
 // --help automatically prints out the flags for that subcommand branch of the tree.
-func Parse(cmds *Commands) (*ParsedCommand, error) {
-	if cmds == nil {
-		return nil, fmt.Errorf("command.Parse called with nil Commands")
+func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
+	if cmd == nil {
+		return nil, fmt.Errorf("command.Parse called with nil Command")
 	}
-	currentCmd := cmds.root
-	if currentCmd == nil {
-		return nil, fmt.Errorf("command.Parse called with nil root Command")
-	}
+	currentCmd := cmd
 	// parse the subcommands, flags, and args
 	parsedCmd := ParsedCommand{}
 	iArg := 0
-	for ; iArg < len(cmds.args); iArg++ {
-		arg := cmds.args[iArg]
+	for ; iArg < len(args); iArg++ {
+		arg := args[iArg]
 		if arg == "--" {
 			// stop parsing flags when you see a bare "--", the rest is args
 			iArg++
@@ -66,9 +63,9 @@ func Parse(cmds *Commands) (*ParsedCommand, error) {
 			switch len(flagNameValue) {
 			case 1: // value is in the next arg
 				flagName = flagNameValue[0]
-				if iArg < len(cmds.args)-1 {
+				if iArg < len(args)-1 {
 					iArg++
-					flagValue = cmds.args[iArg]
+					flagValue = args[iArg]
 					flagOK = true
 				}
 			case 2: // value is after the equals sign
@@ -94,8 +91,8 @@ func Parse(cmds *Commands) (*ParsedCommand, error) {
 		parsedCmd.names = append([]string{cmd.name}, parsedCmd.names...)
 	}
 	// set the remaining args
-	if iArg < len(cmds.args)-1 {
-		parsedCmd.args = cmds.args[iArg+1:]
+	if iArg < len(args)-1 {
+		parsedCmd.args = args[iArg+1:]
 	} else {
 		parsedCmd.args = nil
 	}

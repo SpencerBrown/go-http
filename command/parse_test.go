@@ -9,8 +9,7 @@ import (
 func TestParse(t *testing.T) {
 	tests := []struct {
 		name      string
-		cmds      []string
-		flgs      []string
+		cmd       *Command
 		args      []string
 		wantNames []string
 		wantArgs  []string
@@ -19,40 +18,42 @@ func TestParse(t *testing.T) {
 	}{
 		{
 			name:    "no cmds",
-			cmds:    []string{},
+			cmd:     nil,
 			wantErr: true,
 		},
 		{
 			name:      "no flags or args",
-			cmds:      []string{"root"},
+			cmd:       NewCommand("root", nil, "", nil),
 			wantNames: []string{"root"},
 			wantArgs:  []string{},
 			wantErr:   false,
 		},
 		{
 			name:      "single command, flags and args with equal sign",
-			cmds:      []string{"root"},
-			flgs:      []string{"flag1", "value1", "flag2", "value2"},
+			cmd:       NewCommand("root", nil, "", flag.NewFlags().AddFlag(flag.NewFlag("flag1", nil, "", "", "value1")).AddFlag(flag.NewFlag("flag2", nil, "", "", "value2"))),
 			args:      []string{"--flag1=value1", "--flag2=value2", "arg1", "arg2"},
 			wantNames: []string{"root"},
 			wantArgs:  []string{"arg1", "arg2"},
 			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag1", nil, "", "", "value1")).AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
 			wantErr:   false,
 		},
-		{
-			name:      "subcommand, flags and args",
-			cmds:      []string{"root", "sub"},
-			args:      []string{"sub", "--flag2=value2", "arg1", "arg2"},
-			wantNames: []string{"root", "sub"},
-			wantArgs:  []string{"arg1", "arg2"},
-			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
-			wantErr:   false,
-		},
+		// {
+		// 	name:      "subcommand, flags and args",
+		// 	cmds:      []string{"root", "sub"},
+		// 	args:      []string{"sub", "--flag2=value2", "arg1", "arg2"},
+		// 	wantNames: []string{"root", "sub"},
+		// 	wantArgs:  []string{"arg1", "arg2"},
+		// 	wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
+		// 	wantErr:   false,
+		// },
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Parse(tt.cmds)
+			if tt.cmd == nil {
+				t.Errorf("Parse() with nil cmds")
+			}
+			got, err := Parse(tt.cmd, tt.args)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
 				return

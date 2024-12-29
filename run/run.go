@@ -18,12 +18,13 @@ type Runnable interface {
 }
 
 type Runner struct {
-	Commands    *command.Commands
-	GetEnvVar   func(string) string
-	GetWorkDir  func() (string, error)
-	Input       io.Reader
-	Output      io.Writer
-	ErrorOutput io.Writer
+	Command     *command.Command       // The template for the expected command line with command, subcommands, flags, and args
+	Args        []string               // The actual command line
+	GetEnvVar   func(string) string    // A function to get an environment variable
+	GetWorkDir  func() (string, error) // A function to get the working directory
+	Input       io.Reader              // The input stream
+	Output      io.Writer              // The output stream
+	ErrorOutput io.Writer              // The error output stream
 }
 
 // the following copied from Mat Ryer's blog post "How I write HTTP services in Go after 13 years"
@@ -41,7 +42,7 @@ func (r *Runner) Run(ctx context.Context, debug bool) error {
 	// there's probably a fancy way of putting some error code in the context
 
 	i := 0
-	le := len(r.Commands.Args()) - 1
+	le := len(r.Args) - 1
 	for {
 		select {
 		case <-ctx.Done():
@@ -54,7 +55,7 @@ func (r *Runner) Run(ctx context.Context, debug bool) error {
 			if le <= 0 {
 				fmt.Fprintln(r.Output, 0)
 			} else {
-				fmt.Fprintln(r.Output, i, r.Commands.Args()[i])
+				fmt.Fprintln(r.Output, i, r.Args[i])
 			}
 		}
 	}
@@ -71,7 +72,7 @@ func (r *Runner) String() string {
 	// 		panic(fmt.Sprintf("Internal error executing template for RunArgs: %v", err))
 	// 	}
 	s.WriteString("---Runner struct---\n")
-	s.WriteString(r.Commands.String())
+	s.WriteString(r.Command.String())
 	workdir, err := r.GetWorkDir()
 	if err == nil {
 		fmt.Fprintf(&s, "Working directory: %s\n", workdir)

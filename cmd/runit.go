@@ -13,7 +13,8 @@ import (
 func main() {
 	ctx := context.Background()
 	r := run.Runner{
-		Commands:    command.NewCommands(),
+		Command:    nil,
+		Args:       os.Args,
 		GetEnvVar:   os.Getenv,
 		GetWorkDir:  os.Getwd,
 		Input:       os.Stdin,
@@ -24,10 +25,7 @@ func main() {
 	flgs.AddFlag(flag.NewFlag("foo", nil, "f", "first part of foobar", "one"))
 	flgs.AddFlag(flag.NewFlag("bar", nil, "b", "second part of foobar", 2))
 	flgs.AddFlag(flag.NewFlag("foobar", []string{"fb"}, "", "is it?", true))
-	cmds := r.Commands
 	cmd := command.NewCommand("foobarfoo", []string{"fbf"}, "foobar command", flgs)
-	cmds.SetRoot(cmd)
-	cmds.SetArgs(os.Args[1:])
 	subcmd := command.NewCommand("subfoobar", []string{"sfb"}, "sub foobar command", nil)
 	cmd.SetSub(subcmd)
 	if err := r.Run(ctx, true); err != nil {

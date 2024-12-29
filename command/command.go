@@ -39,22 +39,6 @@ type Command struct {
 	sub         []*Command                 // Subcommands
 }
 
-// Commands represents a command/subcommand tree and the command line arguments
-type Commands struct {
-	args []string
-	root *Command
-}
-
-// Args returns the command line arguments
-func (cmds *Commands) Args() []string {
-	return cmds.args
-}
-
-// SetArgs sets the command line arguments
-func (cmds *Commands) SetArgs(args []string) {
-	cmds.args = args
-}
-
 // Name returns the command name
 func (cmd *Command) Name() string {
 	return cmd.name
@@ -75,19 +59,9 @@ func (cmd *Command) Flags() flag.Flags {
 	return cmd.flags
 }
 
-// NewCommands creates a new empty command/subcommand tree
-func NewCommands() *Commands {
-	return &Commands{
-		args: make([]string, 0),
-		root: nil,
-	}
-}
-
 // NewCommand creates a new command with the given name, aliases, description, and flags
 // command name and any aliases cannot be blank, and cannot duplicate each other
 // command name and aliases are case insensitive and can include unicode characters
-// and cannot duplicate any other command name or alias in the entire tree
-// flags must be unique among the path from this command up to the root command
 func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	// do basic checks of parameters
 	name := strings.ToLower(strings.TrimSpace(nm))
@@ -116,36 +90,20 @@ func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 		}
 		chk[str] = struct{}{}
 	}
-	// create the new command and return it
 	return &Command{
 		name:        name,
 		alias:       aliases,
 		description: desc,
 		flags:       flgs,
-		sub:         make([]*Command, 0),
-	}
-}
-
-// SetRoot makes a command the root command (main command name) for a command/subcommand tree
-func (cmds *Commands) SetRoot(cmd *Command) {
-	if cmds == nil {
-		panic("command.SetRoot called with nil Commands")
-	}
-	if cmd == nil {
-		panic("command.SetRoot called with nil Command")
-	}
-	if cmds.root == nil {
-		cmds.root = cmd
-	} else {
-		panic("command.SetRoot Internal Error: attempt to set root command twice")
+		sub:         nil,
 	}
 }
 
 // SetSub adds a subcommand to the command/subcommand tree
 // We check to ensure that none of the subcommands at this level of the tree or above
 // duplicate each others' names or aliases or flags
-func (parentcmd *Command) SetSub(subcmd *Command) {
-	// basic checks
+// We return the subcommand so that we can chain SetSub calls
+func (parentcmd *Command) SetSub(subcmd *Command) *Command {
 	if parentcmd == nil {
 		panic("command.SetSub called with nil parent command")
 	}
@@ -185,4 +143,5 @@ func (parentcmd *Command) SetSub(subcmd *Command) {
 	// Add subcommand
 	subcmd.parent = parentcmd
 	parentcmd.sub = append(parentcmd.sub, subcmd)
+	return subcmd
 }

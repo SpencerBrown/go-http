@@ -7,23 +7,21 @@ import (
 	"github.com/SpencerBrown/go-http/util"
 )
 
-func (cmds *Commands) String() string {
-	if cmds == nil {
-		return "Commands: nil\n"
+func (cmd *Command) String() string {
+	if cmd == nil {
+		return "Command: nil\n"
 	}
 	var builder strings.Builder
-	builder.WriteString("Commands:\n")
-	builder.WriteString(fmt.Sprintf("Args: %s\n", strings.Join(cmds.args, ", ")))
-	cmds.root.commandTree(&builder, 0)
+	cmd.commandTree(&builder, 0)
 	return builder.String()
 }
 
 func (cmd *Command) commandTree(builder *strings.Builder, indent int) string {
 	if cmd == nil {
-		return "Command: nil\n"
+		return ""
 	}
 	// stringify this command at the indent level
-	builder.WriteString(util.Indent(cmd.String(), indent))
+	builder.WriteString(util.Indent(cmd.OneString(), indent))
 	// output the subcommands indented recursively
 	for _, subcmd := range cmd.sub {
 		subcmd.commandTree(builder, indent+2)
@@ -31,9 +29,9 @@ func (cmd *Command) commandTree(builder *strings.Builder, indent int) string {
 	return builder.String()
 }
 
-func (cmd *Command) String() string {
+func (cmd *Command) OneString() string {
 	if cmd == nil {
-		return "Command: nil\n"
+		return ""
 	}
 	var builder strings.Builder
 	builder.WriteString("Command: " + cmd.name + "\n")
