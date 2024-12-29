@@ -6,14 +6,6 @@ import (
 	"testing"
 )
 
-func something() {
-	flgs := NewFlags()
-	flg := NewFlag("flag1", []string{"f1", "flg1"}, "f", "Flag 1", 1)
-	_ = flgs.AddFlag(flg)
-	z := y.AddFlag(NewFlag("flag1", nil, "", "", "value1"))
-	x := NewFlags().AddFlag(NewFlag("flag1", nil, "", "", "value1"))
-}
-
 func TestNewFlags(t *testing.T) {
 	t.Run("NewFlags", func(t *testing.T) {
 		want := make(Flags)
@@ -23,12 +15,9 @@ func TestNewFlags(t *testing.T) {
 	})
 }
 
-// TestNewFlag also tests GetFlagOK, GetFlag, GetValueOK, and GetValue
-// as well as f.Name(), f.Alias(), f.ShortName(), f.Description()
+// TestNewFlag also tests Flag.Name(), Flag.Alias(), Flag.ShortName(), Flag.Description()
 func TestNewFlag(t *testing.T) {
 	type args struct {
-		f           Flags
-		setupFlags  func(f Flags) Flags
 		name        string
 		alias       []string
 		shortName   string
@@ -59,21 +48,8 @@ func TestNewFlag(t *testing.T) {
 			},
 		},
 		{
-			name: "nilFlags",
-			args: args{
-				f:         nil,
-				name:      "",
-				alias:     []string{},
-				shortName: "",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
-		{
 			name: "blankName",
 			args: args{
-				f:         NewFlags(),
 				name:      "",
 				alias:     []string{},
 				shortName: "",
@@ -85,7 +61,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "singleCharacterName",
 			args: args{
-				f:         NewFlags(),
 				name:      "x",
 				alias:     []string{},
 				shortName: "",
@@ -97,7 +72,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "singleRuneName",
 			args: args{
-				f:         NewFlags(),
 				name:      "✓", // check mark U+2713
 				alias:     []string{},
 				shortName: "",
@@ -109,7 +83,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "blankAlias",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
 				shortName: "",
@@ -121,7 +94,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "singleCharacterAlias",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "x"},
 				shortName: "",
@@ -131,21 +103,30 @@ func TestNewFlag(t *testing.T) {
 			shouldPanic: true,
 		},
 		{
-			name: "blankShortName",
+			name: "singleRuneAlias",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
-				alias:     []string{"barfoo", "\n"},
-				shortName: " ",
+				alias:     []string{"barfoo", "✓"}, // check mark U+2713
+				shortName: "",
 				value:     42,
 			},
 			want:        Flag{},
 			shouldPanic: true,
 		},
 		{
+			name: "blankShortName",
+			args: args{
+				name:      "Foobar",
+				alias:     []string{"barFoo"},
+				shortName: " ",
+				value:     42,
+			},
+			want:        Flag{name: "foobar", alias: []string{"barfoo"}, shortName: "", value: 42},
+			shouldPanic: false,
+		},
+		{
 			name: "longShortName",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "\n"},
 				shortName: "to",
@@ -155,9 +136,8 @@ func TestNewFlag(t *testing.T) {
 			shouldPanic: true,
 		},
 		{
-			name: "dupAlias",
+			name: "dupNameAndAlias",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"foobar", "barfoo"},
 				shortName: "t",
@@ -167,9 +147,8 @@ func TestNewFlag(t *testing.T) {
 			shouldPanic: true,
 		},
 		{
-			name: "dupAlias2",
+			name: "dupAliasAndAlias",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "barfoo"},
 				shortName: "t",
@@ -181,7 +160,6 @@ func TestNewFlag(t *testing.T) {
 		{
 			name: "dupShortName",
 			args: args{
-				f:         NewFlags(),
 				name:      "foobar",
 				alias:     []string{"barfoo", "foobarfoo", "t"},
 				shortName: "t",
@@ -190,95 +168,9 @@ func TestNewFlag(t *testing.T) {
 			want:        Flag{},
 			shouldPanic: true,
 		},
-		{
-			name: "dupFlagName",
-			args: args{
-				f: NewFlags(),
-				setupFlags: func(f Flags) Flags {
-					NewFlag(f, "foobar", []string{}, "", "some description", 42)
-					return f
-				},
-				name:      "foobar",
-				alias:     []string{},
-				shortName: "",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
-		{
-			name: "dupFlagName2",
-			args: args{
-				f: NewFlags(),
-				setupFlags: func(f Flags) Flags {
-					NewFlag(f, "foobar\u2713", []string{}, "f", "some description", 42)
-					return f
-				},
-				name:      "foobar✓",
-				alias:     []string{},
-				shortName: "f",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
-		{
-			name: "dupFlagShortname",
-			args: args{
-				f: NewFlags(),
-				setupFlags: func(f Flags) Flags {
-					NewFlag(f, "foobar", []string{}, "f", "some description", 42)
-					return f
-				},
-				name:      "foobar2",
-				alias:     []string{},
-				shortName: "f",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
-		{
-			name: "dupFlagAlias",
-			args: args{
-				f: NewFlags(),
-				setupFlags: func(f Flags) Flags {
-					NewFlag(f, "foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)
-					return f
-				},
-				name:      "foobar2",
-				alias:     []string{"alpha", "bravo", "charlie"},
-				shortName: "",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
-		{
-			name: "dupFlagAlias2",
-			args: args{
-				f: NewFlags(),
-				setupFlags: func(f Flags) Flags {
-					NewFlag(f, "foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)
-					return f
-				},
-				name:      "foobar2",
-				alias:     []string{"alpha", "bravo", "foobar"},
-				shortName: "",
-				value:     42,
-			},
-			want:        Flag{},
-			shouldPanic: true,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var flgs Flags
-			if tt.args.setupFlags == nil {
-				flgs = tt.args.f
-			} else {
-				flgs = tt.args.setupFlags(tt.args.f)
-			}
 			if tt.shouldPanic {
 				defer func() {
 					rec := recover()
@@ -286,163 +178,28 @@ func TestNewFlag(t *testing.T) {
 						t.Logf("Ignoring panic: %v\n", rec)
 					}
 				}()
-				// the following line should panic, either because the value conversion to string panics,
-				// or because one of the args is invalid for some reason (which varies per test)
-				v := tt.args.value.(int) // panics if value is not an int
-				_ = NewFlag(flgs, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v)
+				v := tt.args.value.(int)                                                            // panics if value is not an int
+				_ = NewFlag(tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v) // should panic
 				t.Errorf("NewFlag test %s should have panicked, but didn't", tt.name)
 			} else {
-				switch v := tt.args.value.(type) {
-				case int:
-					newFlg := NewFlag(flgs, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v)
-					flg, ok := GetFlagOK(tt.args.f, tt.args.name)
-					if ok {
-						if !reflect.DeepEqual(*flg, tt.want) {
-							t.Errorf("GetFlagOK for %s got Flag %v, want %v", tt.args.name, flg, tt.want)
-						}
-						if !reflect.DeepEqual(*flg, *newFlg) {
-							t.Errorf("GetFlagOK for %s returned wrong flag", tt.args.name)
-						}
-						flg2 := GetFlag(tt.args.f, tt.args.name)
-						if !reflect.DeepEqual(*flg2, tt.want) {
-							t.Errorf("GetFlag for %s got Flag %v, want %v", tt.args.name, flg2, tt.want)
-						}
-						val, ok := GetValueOK[int](flg)
-						if !ok {
-							t.Errorf("GetValueOK[int] for %s returned not ok", tt.args.name)
-						}
-						if val != tt.want.value {
-							t.Errorf("GetValue[int] got %d, want %d", val, tt.want.value)
-						}
-					} else {
-						t.Errorf("GetFlagOK for %s returned not ok", tt.args.name)
-					}
-					if flg.Name() != tt.want.name {
-						t.Errorf("Name() got %s, want %s", flg.Name(), tt.want.name)
-					}
-					if !reflect.DeepEqual(flg.Alias(), tt.want.alias) {
-						t.Errorf("Alias() got %v, want %v", flg.Alias(), tt.want.alias)
-					}
-					if flg.ShortName() != tt.want.shortName {
-						t.Errorf("ShortName() got %s, want %s", flg.ShortName(), tt.want.shortName)
-					}
-					if flg.Description() != tt.want.description {
-						t.Errorf("Description() got %s, want %s", flg.Description(), tt.want.description)
-					}
-					val := GetValue[int](flg) // should not panic
-					if val != tt.want.value {
-						t.Errorf("GetValue[int] got %d, want %d", val, tt.want.value)
-					}
-					defer func() { _ = recover() }() // ignore panic
-					GetValue[int64](flg)             // should panic
-					t.Error("GetValue[int64] should have panicked, but didn't")
-				default:
-					t.Errorf("Unknown value type %T val %v", tt.args.value, tt.args.value)
+				flg := NewFlag(tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, tt.args.value.(int))
+				if flg.Name() != tt.want.name {
+					t.Errorf("Name() got %s, want %s", flg.Name(), tt.want.name)
+				}
+				if !reflect.DeepEqual(flg.Alias(), tt.want.alias) {
+					t.Errorf("Alias() got %v, want %v", flg.Alias(), tt.want.alias)
+				}
+				if flg.ShortName() != tt.want.shortName {
+					t.Errorf("ShortName() got %s, want %s", flg.ShortName(), tt.want.shortName)
+				}
+				if flg.Description() != tt.want.description {
+					t.Errorf("Description() got %s, want %s", flg.Description(), tt.want.description)
 				}
 			}
 		})
 	}
 }
 
-func TestFlags_String(t *testing.T) {
-	tests := []struct {
-		name string
-		fs   Flags
-		want string
-	}{
-		{
-			name: "stringTest",
-			fs:   Flags{},
-			want: "Flags:\nName Short Aliases Default Type Description\n",
-		},
-		{
-			name: "stringTest2",
-			fs: Flags{
-				"flg1": &Flag{
-					name:        "flg1",
-					alias:       []string{"alias1"},
-					shortName:   "",
-					description: "",
-					value:       "val",
-				},
-			},
-			want: "Flags:\nName Short Aliases Default Type   Description\nflg1       alias1  val     string \n",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.fs.String(); got != tt.want {
-				t.Errorf("Flags.String() = %s, want %s", strconv.Quote(got), strconv.Quote(tt.want))
-			}
-		})
-	}
-}
-
-func TestGetFlag(t *testing.T) {
-	type args struct {
-		f           Flags
-		name        string
-		alias       []string
-		shortName   string
-		description string
-		value       any
-	}
-	tests := []struct {
-		name        string
-		args        args
-		want        *Flag
-		shouldPanic bool
-	}{
-		{
-			name: "nonexistentFlag",
-			args: args{
-				f:    NewFlags(),
-				name: "NonexistentFlag",
-			},
-			want:        nil,
-			shouldPanic: true,
-		},
-		{
-			name: "existingFlag",
-			args: args{
-				f:           NewFlags(),
-				name:        "ExistingFlag",
-				alias:       []string{"EF", "ExFlg"},
-				shortName:   "E",
-				description: "Existing Flag",
-				value:       42,
-			},
-			want: &Flag{
-				name:        "existingflag",
-				alias:       []string{"ef", "exflg"},
-				shortName:   "E",
-				description: "Existing Flag",
-				value:       42,
-			},
-			shouldPanic: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.shouldPanic {
-				defer func() { rec := recover(); /*fmt.Printf("Ignoring panic: %v\n", rec);*/ _ = rec }() // ignore panic
-				_ = GetFlag(tt.args.f, tt.args.name)
-				t.Error("GetFlag should have panicked, but didn't")
-			} else {
-				switch v := tt.args.value.(type) {
-				case int:
-					NewFlag(tt.args.f, tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v)
-					if got := GetFlag(tt.args.f, tt.args.name); !reflect.DeepEqual(got, tt.want) {
-						t.Errorf("GetFlag() = %v, want %v", got, tt.want)
-					}
-				default:
-					t.Errorf("Unknown value type %T val %v", tt.args.value, tt.args.value)
-
-				}
-			}
-		})
-	}
-}
 func TestGetValueAny(t *testing.T) {
 	tests := []struct {
 		name string
@@ -502,6 +259,443 @@ func TestGetValueAny(t *testing.T) {
 		})
 	}
 }
+
+func TestGetValueOK(t *testing.T) {
+	tests := []struct {
+		name   string
+		flag   *Flag
+		wantOK bool
+	}{
+		{
+			name: "intValue",
+			flag: &Flag{
+				name:        "intFlag",
+				alias:       []string{"iF"},
+				shortName:   "i",
+				description: "An integer flag",
+				value:       42,
+			},
+			wantOK: true,
+		},
+		{
+			name: "stringValue",
+			flag: &Flag{
+				name:        "stringFlag",
+				alias:       []string{"sF"},
+				shortName:   "s",
+				description: "A string flag",
+				value:       "hello",
+			},
+			wantOK: false,
+		},
+		{
+			name: "boolValue",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       true,
+			},
+			wantOK: false,
+		},
+		{
+			name: "int64Value",
+			flag: &Flag{
+				name:        "int64Flag",
+				alias:       []string{"i64F"},
+				shortName:   "i64",
+				description: "An int64 flag",
+				value:       int64(64),
+			},
+			wantOK: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := GetValueOK[int](tt.flag)
+			if ok != tt.wantOK {
+				t.Errorf("GetValueOK() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && got != tt.flag.value {
+				t.Errorf("GetValueOK() value = %v, want %v", got, tt.flag.value)
+			}
+		})
+	}
+}
+
+func TestGetValue(t *testing.T) {
+	tests := []struct {
+		name        string
+		flag        *Flag
+		shouldPanic bool
+	}{
+		{
+			name: "intValue",
+			flag: &Flag{
+				name:        "intFlag",
+				alias:       []string{"iF"},
+				shortName:   "i",
+				description: "An integer flag",
+				value:       42,
+			},
+			shouldPanic: false,
+		},
+		{
+			name: "stringValue",
+			flag: &Flag{
+				name:        "stringFlag",
+				alias:       []string{"sF"},
+				shortName:   "s",
+				description: "A string flag",
+				value:       "hello",
+			},
+			shouldPanic: true,
+		},
+		{
+			name: "boolValue",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       true,
+			},
+			shouldPanic: true,
+		},
+		{
+			name: "int64Value",
+			flag: &Flag{
+				name:        "int64Flag",
+				alias:       []string{"i64F"},
+				shortName:   "i64",
+				description: "An int64 flag",
+				value:       int64(64),
+			},
+			shouldPanic: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					rec := recover()
+					if rec != nil {
+						t.Logf("Ignoring panic: %v\n", rec)
+					}
+				}()
+				GetValue[int](tt.flag) // should panic
+				t.Errorf("GetValue test %s should have panicked, but didn't", tt.name)
+			} else {
+				if got := GetValue[int](tt.flag); got != tt.flag.value {
+					t.Errorf("GetValue() = %v, want %v", got, tt.flag.value)
+				}
+			}
+		})
+	}
+}
+
+func TestAddFlag(t *testing.T) {
+	type args struct {
+		f           Flags
+		name        string
+		alias       []string
+		shortName   string
+		description string
+		value       any
+	}
+	tests := []struct {
+		name        string
+		args        args
+		want        Flags
+		shouldPanic bool
+	}{
+		{
+			name: "addIntFlag",
+			args: args{
+				f:           NewFlags(),
+				name:        "IntFlag",
+				alias:       []string{"IF", "IntFlg"},
+				shortName:   "I",
+				description: "Int Flag",
+				value:       42,
+			},
+			want:        NewFlags().AddFlag(NewFlag("intflag", []string{"if", "intflg"}, "I", "Int Flag", 42)),
+			shouldPanic: false,
+		},
+		{
+			name: "nilFlags",
+			args: args{
+				f:         nil,
+				name:      "",
+				alias:     []string{},
+				shortName: "",
+				value:     42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagName",
+			args: args{
+				f:         NewFlags().AddFlag(NewFlag("foobar", []string{}, "", "some description", 42)),
+				name:      "foobar",
+				alias:     []string{},
+				shortName: "",
+				value:     42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagName2",
+			args: args{
+				f:           NewFlags().AddFlag(NewFlag("foobar✓", []string{}, "", "some description", 42)),
+				name:        "foobar✓",
+				alias:       []string{},
+				shortName:   "f",
+				description: "some description",
+				value:       42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagShortname",
+			args: args{
+				f:           NewFlags().AddFlag(NewFlag("foobar", []string{}, "f", "some description", 42)),
+				name:        "foobar2",
+				alias:       []string{},
+				shortName:   "f",
+				description: "some description",
+				value:       42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagShortnameCase",
+			args: args{
+				f:           NewFlags().AddFlag(NewFlag("foobar", []string{}, "F", "some description", 42)),
+				name:        "foobar2",
+				alias:       []string{},
+				shortName:   "f",
+				description: "some description",
+				value:       42,
+			},
+			want:        NewFlags().AddFlag(NewFlag("foobar", []string{}, "F", "some description", 42)).AddFlag(NewFlag("foobar2", []string{}, "f", "some description", 42)),
+			shouldPanic: false,
+		},
+		{
+			name: "dupFlagAlias",
+			args: args{
+				f:         NewFlags().AddFlag(NewFlag("foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)),
+				name:      "foobar2",
+				alias:     []string{"alpha", "bravo", "charlie"},
+				shortName: "",
+				value:     42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+		{
+			name: "dupFlagAlias2",
+			args: args{
+				f:         NewFlags().AddFlag(NewFlag("foobar", []string{"able", "baker", "charlie"}, "", "some description", 42)),
+				name:      "foobar2",
+				alias:     []string{"alpha", "bravo", "foobar"},
+				shortName: "",
+				value:     42,
+			},
+			want:        nil,
+			shouldPanic: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flgs := tt.args.f
+			if tt.shouldPanic {
+				defer func() {
+					rec := recover()
+					if rec != nil {
+						t.Logf("Ignoring panic: %v\n", rec)
+					}
+				}()
+				//TODO test other value types
+				v := tt.args.value.(int) // panics if value is not an int
+				flgs.AddFlag(NewFlag(tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v))
+				t.Errorf("AddFlag test %s should have panicked, but didn't", tt.name)
+			} else {
+				switch v := tt.args.value.(type) {
+				case int:
+					newFlags := flgs.AddFlag(NewFlag(tt.args.name, tt.args.alias, tt.args.shortName, tt.args.description, v))
+					if !reflect.DeepEqual(newFlags, tt.want) {
+						t.Errorf("AddFlag() = %v, want %v", newFlags, tt.want)
+					}
+				default:
+					t.Errorf("Unknown value type %T val %v", tt.args.value, tt.args.value)
+				}
+			}
+		})
+	}
+}
+
+func TestGetFlagOK(t *testing.T) {
+	tests := []struct {
+		name   string
+		f      Flags
+		n      string
+		wantOK bool
+		want   *Flag
+	}{
+		{
+			name: "getFlagOK valid",
+			f: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			n:      "flag1",
+			wantOK: true,
+			want: &Flag{
+				name:        "flag1",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+		},
+		{
+			name: "getFlagOK invalid",
+			f: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2", "flg2"},
+					shortName:   "g",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			n:      "flag1",
+			wantOK: false,
+			want:   nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := GetFlagOK(tt.f, "flag1")
+			if ok != tt.wantOK {
+				t.Errorf("GetFlagOK() ok = %v, want %v", ok, tt.wantOK)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetFlagOK() value = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetFlag(t *testing.T) {
+	tests := []struct {
+		name        string
+		f           Flags
+		n           string
+		shouldPanic bool
+		want        *Flag
+	}{
+		{
+			n: "flag1",
+			f: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "flg1"},
+					shortName:   "f",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			want: &Flag{
+				name:        "flag1",
+				alias:       []string{"f1", "flg1"},
+				shortName:   "f",
+				description: "Flag 1",
+				value:       1,
+			},
+			shouldPanic: false,
+		},
+		{
+			name: "getFlag invalid",
+			f: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2", "flg2"},
+					shortName:   "g",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			n:           "flag1",
+			want:        nil,
+			shouldPanic: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					rec := recover()
+					if rec != nil {
+						t.Logf("Ignoring panic: %v\n", rec)
+					}
+				}()
+				GetFlag(tt.f, tt.n)
+				t.Errorf("GetFlag test %s should have panicked, but didn't", tt.name)
+			} else {
+				if got := GetFlag(tt.f, tt.n); !reflect.DeepEqual(got, tt.want) {
+					t.Errorf("GetFlag() = %v, want %v", got, tt.want)
+				}
+			}
+		})
+	}
+}
+
+func TestFlags_String(t *testing.T) {
+	tests := []struct {
+		name string
+		fs   Flags
+		want string
+	}{
+		{
+			name: "stringTest",
+			fs:   Flags{},
+			want: "Flags:\nName Short Aliases Default Type Description\n",
+		},
+		{
+			name: "stringTest2",
+			fs: Flags{
+				"flg1": &Flag{
+					name:        "flg1",
+					alias:       []string{"alias1"},
+					shortName:   "",
+					description: "",
+					value:       "val",
+				},
+			},
+			want: "Flags:\nName Short Aliases Default Type   Description\nflg1       alias1  val     string \n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.fs.String(); got != tt.want {
+				t.Errorf("Flags.String() = %s, want %s", strconv.Quote(got), strconv.Quote(tt.want))
+			}
+		})
+	}
+}
+
 func TestFindFlag(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -574,8 +768,8 @@ func TestFindFlag(t *testing.T) {
 					value:       1,
 				},
 			},
-			search:   "f",
-			expected:  &Flag{
+			search: "f",
+			expected: &Flag{
 				name:        "flag1",
 				alias:       []string{"f1", "flg1"},
 				shortName:   "f",
