@@ -194,7 +194,8 @@ func (flgs Flags) FindFlag(nm string) *Flag {
 	return nil
 }
 
-// CheckFlags compares two sets of flags to ensure there are no duplicates.
+// CheckFlags compares two sets of flags to ensure there are no duplicates
+// among the names, aliases, and short names.
 // It returns true if there are no duplicates, false if there are.
 func CheckFlagsForDuplicates(flgs1 Flags, flgs2 Flags) bool {
 	allNames := make([]string, 0)
@@ -220,6 +221,9 @@ func CheckFlagsForDuplicates(flgs1 Flags, flgs2 Flags) bool {
 }
 
 // MergeFlags merges one set of flags into another.
+// The flags in the second set are copied into the first set. 
+// It is assumed there are no duplicates. Use CheckFlagsForDuplicates to check.
+// If there are, the second set will overwrite the first.
 func MergeFlags(flgs1 Flags, flgs2 Flags) {
 	for name, flg := range flgs2 {
 		flgs1[name] = flg

@@ -807,3 +807,453 @@ func TestFindFlag(t *testing.T) {
 		})
 	}
 }
+func TestMergeFlags(t *testing.T) {
+	tests := []struct {
+		name     string
+		flgs1    Flags
+		flgs2    Flags
+		expected Flags
+	}{
+		{
+			name: "mergeNonOverlappingFlags",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+		},
+		{
+			name: "mergeOverlappingFlags",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1 updated",
+					value:       10,
+				},
+			},
+			expected: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1 updated",
+					value:       10,
+				},
+			},
+		},
+		{
+			name: "mergeEmptyFlags",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{},
+			expected: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+		},
+		{
+			name:  "mergeIntoEmptyFlags",
+			flgs1: Flags{},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			MergeFlags(tt.flgs1, tt.flgs2)
+			if !reflect.DeepEqual(tt.flgs1, tt.expected) {
+				t.Errorf("MergeFlags() = %v, want %v", tt.flgs1, tt.expected)
+			}
+		})
+	}
+}
+func TestCheckFlagsForDuplicates(t *testing.T) {
+	tests := []struct {
+		name     string
+		flgs1    Flags
+		flgs2    Flags
+		expected bool
+	}{
+		{
+			name: "noDuplicates",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "duplicateNames",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f2"},
+					shortName:   "b",
+					description: "Flag 1 duplicate",
+					value:       2,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "duplicateAliases",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f1"},
+					shortName:   "b",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "duplicateShortNames",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2"},
+					shortName:   "a",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "duplicateNamesAndAliases",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "duplicateMultiAliases",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1", "f2"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2: Flags{
+				"flag2": &Flag{
+					name:        "flag2",
+					alias:       []string{"f2", "f3"},
+					shortName:   "a",
+					description: "Flag 2",
+					value:       2,
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "noDuplicatesWithEmptyFlags",
+			flgs1: Flags{
+				"flag1": &Flag{
+					name:        "flag1",
+					alias:       []string{"f1"},
+					shortName:   "a",
+					description: "Flag 1",
+					value:       1,
+				},
+			},
+			flgs2:    Flags{},
+			expected: true,
+		},
+		{
+			name:     "noDuplicatesWithBothEmptyFlags",
+			flgs1:    Flags{},
+			flgs2:    Flags{},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CheckFlagsForDuplicates(tt.flgs1, tt.flgs2)
+			if result != tt.expected {
+				t.Errorf("CheckFlagsForDuplicates() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+func TestParseValue(t *testing.T) {
+	tests := []struct {
+		name        string
+		flag        *Flag
+		input       string
+		expectedErr bool
+		expectedVal any
+		shouldPanic bool
+	}{
+		{
+			name: "parseInt",
+			flag: &Flag{
+				name:        "intFlag",
+				alias:       []string{"iF"},
+				shortName:   "i",
+				description: "An integer flag",
+				value:       0,
+			},
+			input:       "42",
+			expectedErr: false,
+			expectedVal: 42,
+		},
+		{
+			name: "parseInvalidInt",
+			flag: &Flag{
+				name:        "intFlag",
+				alias:       []string{"iF"},
+				shortName:   "i",
+				description: "An integer flag",
+				value:       0,
+			},
+			input:       "invalid",
+			expectedErr: true,
+			expectedVal: 0,
+		},
+		{
+			name: "parseInt64",
+			flag: &Flag{
+				name:        "int64Flag",
+				alias:       []string{"i64F"},
+				shortName:   "i64",
+				description: "An int64 flag",
+				value:       int64(0),
+			},
+			input:       "64",
+			expectedErr: false,
+			expectedVal: int64(64),
+		},
+		{
+			name: "parseInvalidInt64",
+			flag: &Flag{
+				name:        "int64Flag",
+				alias:       []string{"i64F"},
+				shortName:   "i64",
+				description: "An int64 flag",
+				value:       int64(0),
+			},
+			input:       "invalid",
+			expectedErr: true,
+			expectedVal: int64(0),
+		},
+		{
+			name: "parseString",
+			flag: &Flag{
+				name:        "stringFlag",
+				alias:       []string{"sF"},
+				shortName:   "s",
+				description: "A string flag",
+				value:       "",
+			},
+			input:       "hello",
+			expectedErr: false,
+			expectedVal: "hello",
+		},
+		{
+			name: "parseBoolTrue",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       false,
+			},
+			input:       "true",
+			expectedErr: false,
+			expectedVal: true,
+		},
+		{
+			name: "parseBoolFalse",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       true,
+			},
+			input:       "false",
+			expectedErr: false,
+			expectedVal: false,
+		},
+		{
+			name: "parseInvalidBool",
+			flag: &Flag{
+				name:        "boolFlag",
+				alias:       []string{"bF"},
+				shortName:   "b",
+				description: "A boolean flag",
+				value:       false,
+			},
+			input:       "invalid",
+			expectedErr: true,
+			expectedVal: false,
+		},
+		{
+			name: "parseUnknownType",
+			flag: &Flag{
+				name:        "unknownFlag",
+				alias:       []string{"uF"},
+				shortName:   "u",
+				description: "An unknown type flag",
+				value:       3.14,
+			},
+			input:       "3.14",
+			shouldPanic: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.shouldPanic {
+				defer func() {
+					rec := recover()
+					if rec != nil {
+						t.Logf("Ignoring panic: %v\n", rec)
+					}
+				}()
+				tt.flag.ParseValue(tt.input)
+				t.Errorf("ParseValue test %s should have panicked, but didn't", tt.name)
+			} else {
+
+				err := tt.flag.ParseValue(tt.input)
+				if (err != nil) != tt.expectedErr {
+					t.Errorf("ParseValue() error = %v, expectedErr %v", err, tt.expectedErr)
+				}
+				if !reflect.DeepEqual(tt.flag.value, tt.expectedVal) {
+					t.Errorf("ParseValue() value = %v, expectedVal %v", tt.flag.value, tt.expectedVal)
+				}
+			}
+		})
+	}
+}
