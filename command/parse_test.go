@@ -17,7 +17,7 @@ func TestParse(t *testing.T) {
 		wantErr   bool
 	}{
 		{
-			name:    "no cmds",
+			name:    "no cmd",
 			cmd:     nil,
 			wantErr: true,
 		},
@@ -37,33 +37,37 @@ func TestParse(t *testing.T) {
 			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag1", nil, "", "", "value1")).AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
 			wantErr:   false,
 		},
-		// {
-		// 	name:      "subcommand, flags and args",
-		// 	cmds:      []string{"root", "sub"},
-		// 	args:      []string{"sub", "--flag2=value2", "arg1", "arg2"},
-		// 	wantNames: []string{"root", "sub"},
-		// 	wantArgs:  []string{"arg1", "arg2"},
-		// 	wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
-		// 	wantErr:   false,
-		// },
+		{
+			name: "subcommand, flags and args",
+			cmd: NewCommand("root", nil, "", flag.NewFlags().
+				AddFlag(flag.NewFlag("flag1", nil, "", "", "value1")).
+				AddFlag(flag.NewFlag("flag2", nil, "", "", "value2"))).
+				SetSub(NewCommand("sub", nil, "", nil)),
+			args:      []string{"sub", "--flag2=value2", "arg1", "arg2"},
+			wantNames: []string{"root", "sub"},
+			wantArgs:  []string{"arg1", "arg2"},
+			wantFlags: flag.NewFlags().AddFlag(flag.NewFlag("flag2", nil, "", "", "value2")),
+			wantErr:   false,
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.cmd == nil {
+			if (tt.cmd == nil) && !tt.wantErr {
 				t.Errorf("Parse() with nil cmds")
-			}
-			got, err := Parse(tt.cmd, tt.args)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if err == nil {
-				if !equalSlices(got.names, tt.wantNames) {
-					t.Errorf("Parse() names = %v, want %v", got.names, tt.wantNames)
+			} else {
+				got, err := Parse(tt.cmd, tt.args)
+				if (err != nil) && !tt.wantErr {
+					t.Errorf("Parse() error = %v, wantErr %v", err, tt.wantErr)
+					return
 				}
-				if !equalSlices(got.args, tt.wantArgs) {
-					t.Errorf("Parse() args = %v, want %v", got.args, tt.wantArgs)
+				if err == nil {
+					if !equalSlices(got.names, tt.wantNames) {
+						t.Errorf("Parse() names = %v, want %v", got.names, tt.wantNames)
+					}
+					if !equalSlices(got.args, tt.wantArgs) {
+						t.Errorf("Parse() args = %v, want %v", got.args, tt.wantArgs)
+					}
 				}
 			}
 		})

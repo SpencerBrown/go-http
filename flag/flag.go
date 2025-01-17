@@ -10,7 +10,7 @@ import (
 // Flag is a single flag.
 // The aliases and the name must be different from each other, and cannot be a single character.
 // The differences must be case insensitive; the names and aliases are converted to lower case.
-// The short name must be a single character, or null "". It is case sensitive.
+// The short name must be a single character, or empty "" meaning no shortname. It is case sensitive.
 type Flag struct {
 	name        string   // name of flag
 	alias       []string // alias names
@@ -90,6 +90,7 @@ func NewFlag[V FlagTypes](nm string, al []string, sn string, desc string, value 
 		aliases = append(aliases, alias)
 	}
 	// ensure no duplicates among name and aliases for this flag
+	// the shortname cannot be a duplicate because name and aliases must be at least two characters
 	checker := make([]string, 0)
 	checker = append(checker, name)
 	checker = append(checker, aliases...)
@@ -202,12 +203,16 @@ func CheckFlagsForDuplicates(flgs1 Flags, flgs2 Flags) bool {
 	for name, flg := range flgs1 {
 		allNames = append(allNames, name)
 		allNames = append(allNames, flg.alias...)
-		allNames = append(allNames, flg.shortName)	
+		if len(flg.shortName) > 0 {
+			allNames = append(allNames, flg.shortName)
+		}
 	}
 	for name, flg := range flgs2 {
 		allNames = append(allNames, name)
 		allNames = append(allNames, flg.alias...)
-		allNames = append(allNames, flg.shortName)	
+		if len(flg.shortName) > 0 {
+			allNames = append(allNames, flg.shortName)
+		}
 	}
 	checker := make(map[string]struct{})
 	for _, nm := range allNames {
@@ -221,7 +226,7 @@ func CheckFlagsForDuplicates(flgs1 Flags, flgs2 Flags) bool {
 }
 
 // MergeFlags merges one set of flags into another.
-// The flags in the second set are copied into the first set. 
+// The flags in the second set are copied into the first set.
 // It is assumed there are no duplicates. Use CheckFlagsForDuplicates to check.
 // If there are, the second set will overwrite the first.
 func MergeFlags(flgs1 Flags, flgs2 Flags) {
@@ -248,12 +253,12 @@ func (f *Flag) ParseValue(s string) error {
 	case string:
 		f.value = s
 	case bool:
-		switch s        {
+		switch s {
 		case "true", "True", "TRUE", "t", "T", "1":
 			f.value = true
-		case "false", "False", "FALSE", "f", "F", "0":	
+		case "false", "False", "FALSE", "f", "F", "0":
 			f.value = false
-		default: 
+		default:
 			return fmt.Errorf("flag.ParseValue: could not parse %s as bool", s)
 		}
 	default:

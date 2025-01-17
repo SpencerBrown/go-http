@@ -34,7 +34,7 @@ type Command struct {
 	alias       []string                   // Aliases for command
 	description string                     // Description of command
 	flags       flag.Flags                 // Flags for this command
-	handler     func(*ParsedCommand) error // Handler for this command
+	// handler     func(*ParsedCommand) error // Handler for this command
 	parent      *Command                   // Parent command
 	sub         []*Command                 // Subcommands
 }

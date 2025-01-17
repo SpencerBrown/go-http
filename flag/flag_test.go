@@ -1242,7 +1242,7 @@ func TestParseValue(t *testing.T) {
 						t.Logf("Ignoring panic: %v\n", rec)
 					}
 				}()
-				tt.flag.ParseValue(tt.input)
+				_ = tt.flag.ParseValue(tt.input)
 				t.Errorf("ParseValue test %s should have panicked, but didn't", tt.name)
 			} else {
 

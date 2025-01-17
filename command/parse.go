@@ -21,10 +21,11 @@ type ParsedCommand struct {
 // command [flags] [subcommand] [flags] [subcommand] [flags] [args]
 // Flags cannot be duplicated among the command and its subcommands on one path of the command tree,
 // but flags can be duplicated among different paths of the command tree.
-// Parse identifies the subcommands being used.
+// Parse identifies the subcommands being used and returns a ParseCommand struct with the command line arguments and consolidated flags.
 // For each argument:
 // - If the argument is a flag, it is parsed and set in the flag.Flags struct for the current command.
 // - If the argument is not a flag, we check if it is a subcommand.  If it is, we set the subcommand as the current command.
+// - We start with the root command, which doesn't have an actual name, but its subcommands are the top-level commands.
 // - If the argument is not a flag or a subcommand, it is added to the args slice, and we stop parsing for flags and subcommands.
 // Flag parsing stops just before the first non-flag argument ("-" is a non-flag argument) or after the terminator "--",
 // and the args slice in the ParsedCommand is set to the remaining command line arguments.
@@ -33,17 +34,16 @@ type ParsedCommand struct {
 // -- is used to separate the flags from the arguments.
 // Integer flags accept 1234, 0664, 0x1234 and may be negative.
 // Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
-// Duration flags accept any input valid for time.ParseDuration.
-// []string flags accept a list of comma-separated strings.
-// --help automatically prints out the flags for that subcommand branch of the tree.
+// TODO Duration flags accept any input valid for time.ParseDuration.
+// TODO []string flags accept a list of comma-separated strings.
+// --help automatically prints out the flags and parent commands for that subcommand branch of the tree.
 func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
 	if cmd == nil {
 		return nil, fmt.Errorf("command.Parse called with nil Command")
 	}
 	currentCmd := cmd
-	// parse the subcommands, flags, and args
 	parsedCmd := ParsedCommand{}
-	iArg := 0
+	iArg := 0 // Tracks the first argument after parsing the commands and flags
 	for ; iArg < len(args); iArg++ {
 		arg := args[iArg]
 		if arg == "--" {
@@ -57,6 +57,7 @@ func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
 		}
 		if strings.HasPrefix(arg, "--") {
 			// find the flag with the double dash prefix
+			// note we have already checked for a bare "--" so we know there's more in the arg string
 			flagNameValue := strings.Split(arg[2:], "=") // it might have a value after the "="
 			var flagName, flagValue string
 			flagOK := false
@@ -72,6 +73,8 @@ func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
 				flagName = flagNameValue[0]
 				flagValue = flagNameValue[1]
 				flagOK = true
+			default:
+				// leave flagOK as false
 			}
 			if !flagOK {
 				return nil, fmt.Errorf("invalid flag %s", arg)
@@ -84,6 +87,19 @@ func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
 			if err := theFlag.ParseValue(flagValue); err != nil {
 				return nil, err
 			}
+		} else {
+			// check if the arg is a command at the current point in the command tree
+			foundCmd := false
+			for _, subCmd := range currentCmd.sub {
+				if subCmd.name == arg {
+					currentCmd = subCmd
+					foundCmd = true
+				}
+			}
+			if !foundCmd {
+				// stop parsing flags and subcommands when you see a non-flag non-command argument
+				break
+			}
 		}
 	}
 	// set the names of the command and its subcommands in order from the root to the current command
@@ -92,7 +108,7 @@ func Parse(cmd *Command, args []string) (*ParsedCommand, error) {
 	}
 	// set the remaining args
 	if iArg < len(args)-1 {
-		parsedCmd.args = args[iArg+1:]
+		parsedCmd.args = args[iArg:]
 	} else {
 		parsedCmd.args = nil
 	}
