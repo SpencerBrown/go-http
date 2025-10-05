@@ -4,6 +4,7 @@ import "strings"
 
 // Indent takes a multi-line string, where the lines are delimited by newline characters,
 // and indents it by the given number of levels. Each level is two spaces.
+// This is useful for pretty-printing nested information. 
 // A negative level is treated as zero, and a level >20 is treated as 20.
 // It returns the indented string.
 // If the input string is empty, it returns an empty string.
