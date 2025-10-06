@@ -84,26 +84,26 @@ func (opt *Option) LongDescription() string {
 // The description and long description can be empty strings.
 // The value must be one of the types in OptionTypes: int, int64, string, or bool.
 // Unicode runes and strings are supported.
-// If anthing is not valid, it panics.
-func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, value V, handler OptionHandler) *Option {
+// Returns an error if anything is not valid.
+func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, value V, handler OptionHandler) (*Option, error) {
 	// Trim and lowercase the name and aliases, check for duplicates or single character names/aliases
 	name := strings.ToLower(strings.TrimSpace(nm)) // names are case insensitive
 	nameLength := utf8.RuneCountInString(name)
 	if nameLength == 0 {
-		panic("option.NewOption called with blank option name")
+		return nil, fmt.Errorf("option.NewOption called with blank option name")
 	}
 	if nameLength == 1 {
-		panic(fmt.Sprintf("option.NewOption called with a single-rune option name: %s", name))
+		return nil, fmt.Errorf("option.NewOption called with a single-rune option name: %s", name)
 	}
 	aliases := make([]string, 0)
-	for _, aliasuntrimmed := range al {
+	for _, aliasuntrimmed := range al { // note if al is nil, this loop is skipped
 		alias := strings.ToLower(strings.TrimSpace(aliasuntrimmed))
 		aliasLength := utf8.RuneCountInString(alias)
 		if aliasLength == 0 {
-			panic("option.NewOption called with a blank alias")
+			return nil, fmt.Errorf("option.NewOption called with a blank alias")
 		}
 		if aliasLength == 1 {
-			panic(fmt.Sprintf("option.NewOption called with a single-rune alias: %s", alias))
+			return nil, fmt.Errorf("option.NewOption called with a single-rune alias: %s", alias)
 		}
 		aliases = append(aliases, alias)
 	}
@@ -116,35 +116,39 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 	for _, thisname := range allnames {
 		_, ok := chk[thisname]
 		if ok {
-			panic(fmt.Sprintf("option.NewOption: duplicate name/alias %s", thisname))
+			return nil, fmt.Errorf("option.NewOption: duplicate name/alias %s", thisname)
 		}
 		chk[thisname] = struct{}{}
 	}
 	// check shortname and shortname aliases
 	// if there's no shortname, there cannot be any shortname aliases
+	shortAliases := sa
+	if shortAliases == nil {
+		shortAliases = make([]rune, 0)
+	}
 	if sn == 0 {
-		if len(sa) > 0 {
-			panic("option.NewOption called with shortname aliases but no shortname")
+		if len(shortAliases) > 0 {
+			return nil, fmt.Errorf("option.NewOption called with shortname aliases but no shortname")
 		}
 	} else {
 		// we have a shortname, check that it's not whitespace, and not a duplicate of any of the short aliases
 		if unicode.IsSpace(sn) {
-			panic("option.NewOption called with a whitespace shortname")
+			return nil, fmt.Errorf("option.NewOption called with a whitespace shortname")
 		}
 		allshortnames := make([]rune, 0)
 		allshortnames = append(allshortnames, sn) // include the shortname itself in the list to check for duplicates
-		allshortnames = append(allshortnames, sa...)
+		allshortnames = append(allshortnames, shortAliases...)
 		achk := make(map[rune]struct{})
 		for _, r := range allshortnames {
 			if r == 0 {
-				panic("option.NewOption called with a zero rune shortname alias")
+				return nil, fmt.Errorf("option.NewOption called with a zero rune shortname alias")
 			}
 			if unicode.IsSpace(r) {
-				panic("option.NewOption called with a whitespace shortname alias")
+				return nil, fmt.Errorf("option.NewOption called with a whitespace shortname alias")
 			}
 			_, ok := achk[r]
 			if ok {
-				panic(fmt.Sprintf("option.NewOption: duplicate shortname/alias %c", r))
+				return nil, fmt.Errorf("option.NewOption: duplicate shortname/alias %c", r)
 			}
 			achk[r] = struct{}{}
 		}
@@ -155,13 +159,13 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 		name:            name,
 		aliases:         aliases,
 		shortName:       sn,
-		shortAliases:    sa,
+		shortAliases:    shortAliases,
 		description:     desc,
 		longDescription: longdesc,
 		value:           value,
 		handler:         handler,
 	}
-	return opt
+	return opt, nil
 }
 
 // GetOptionOK gets a option by name, returning ok as false if the option does not exist.
@@ -170,13 +174,13 @@ func GetOptionOK(f Options, name string) (*Option, bool) {
 	return opt, ok
 }
 
-// GetOption gets a option by name, panics if the option does not exist.
-func GetOption(f Options, name string) *Option {
+// GetOption gets a option by name, returns an error if the option does not exist.
+func GetOption(f Options, name string) (*Option, error) {
 	opt, ok := f[name]
 	if ok {
-		return opt
+		return opt, nil
 	} else {
-		panic(fmt.Sprintf("option.GetOption internal error: option %s does not exist", name))
+		return nil, fmt.Errorf("option.GetOption: option %s does not exist", name)
 	}
 }
 
@@ -188,14 +192,14 @@ func GetValueOK[V OptionTypes](f *Option) (V, bool) {
 }
 
 // GetValue is a generic function to get the properly typed value of the option.
-// It panics if the type of the option value is not what was expected.
-func GetValue[V OptionTypes](f *Option) V {
+// It returns an error if the type of the option value is not what was expected.
+func GetValue[V OptionTypes](f *Option) (V, error) {
 	v, ok := f.value.(V)
 	if !ok {
 		var wantV V
-		panic(fmt.Sprintf("option.GetValue internal error: for option %s, value is type %T, tried to get as type %T", f.name, f.value, wantV))
+		return wantV, fmt.Errorf("option.GetValue: for option %s, value is type %T, tried to get as type %T", f.name, f.value, wantV)
 	}
-	return v
+	return v, nil
 }
 
 // GetValueAny gets the value of a option as an interface{}.
@@ -204,39 +208,41 @@ func (opt *Option) GetValueAny() any {
 }
 
 // AddOption adds a option to a set of options.
-func (opts Options) AddOption(opt *Option) Options {
+// It returns an error if the option name or any alias or short name or short alias
+// conflicts with an existing option in the set.
+func (opts Options) AddOption(opt *Option) error {
 	// ensure no conflicts with existing options: names, aliases, short names
 	for optName, optValue := range opts {
 		if optName == opt.name {
-			panic(fmt.Sprintf("option.AddOption: attempt to add already existing option name %s", optName))
+			return fmt.Errorf("option.AddOption: attempt to add already existing option name %s", optName)
 		}
 		for _, newAlias := range opt.aliases {
 			if newAlias == optValue.name {
-				panic(fmt.Sprintf("option.AddOption: attempt to add alias %s of option %s which is also the name of another option", newAlias, opt.name))
+				return fmt.Errorf("option.AddOption: attempt to add alias %s of option %s which is also the name of another option", newAlias, opt.name)
 			}
 			for _, oldAlias := range optValue.aliases {
 				if oldAlias == newAlias {
-					panic(fmt.Sprintf("option.AddOption: attempt to add option %s with alias %s which is also an alias for option %s", opt.name, newAlias, optName))
+					return fmt.Errorf("option.AddOption: attempt to add option %s with alias %s which is also an alias for option %s", opt.name, newAlias, optName)
 				}
 			}
 		}
 		if opt.shortName != 0 && opt.shortName == optValue.shortName {
-			panic(fmt.Sprintf("option.AddOption: attempt to add option %s with identical shortname %s as option %s", opt.name, string(opt.shortName), optName))
+			return fmt.Errorf("option.AddOption: attempt to add option %s with identical shortname %s as option %s", opt.name, string(opt.shortName), optName)
 		}
 		for _, newShortAlias := range opt.shortAliases {
 			if newShortAlias == optValue.shortName {
-				panic(fmt.Sprintf("option.AddOption: attempt to add shortname alias %c of option %s which is also the shortname of another option", newShortAlias, opt.name))
+				return fmt.Errorf("option.AddOption: attempt to add shortname alias %c of option %s which is also the shortname of another option", newShortAlias, opt.name)
 			}
 			for _, oldShortAlias := range optValue.shortAliases {
 				if oldShortAlias == newShortAlias {
-					panic(fmt.Sprintf("option.AddOption: attempt to add option %s with shortname alias %c which is also a shortname alias for option %s", opt.name, newShortAlias, optName))
+					return fmt.Errorf("option.AddOption: attempt to add option %s with shortname alias %c which is also a shortname alias for option %s", opt.name, newShortAlias, optName)
 				}
 			}
 		}
 	}
 	// no conflicts, add the option
 	opts[opt.name] = opt
-	return opts
+	return nil
 }
 
 // FindOption finds a option within a option set by name or alias
@@ -341,7 +347,7 @@ func (opt *Option) ParseValue(s string) error {
 			return fmt.Errorf("option.ParseValue: could not parse %s as bool", s)
 		}
 	default:
-		panic(fmt.Sprintf("option.ParseValue internal error: unknown type %T", v))
+		return fmt.Errorf("option.ParseValue: unknown type %T", v)
 	}
 	return nil
 }
