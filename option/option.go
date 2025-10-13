@@ -12,6 +12,12 @@ import (
 // The aliases and the name must be different from each other, and cannot be a single character.
 // The differences must be case insensitive; the names and aliases are converted to lower case.
 // The short name must be a single character, or empty "" meaning no shortname. It is case sensitive.
+// You must use the --flag=false form to turn off a boolean flag.
+// -- is used to separate the flags from the arguments.
+// Integer flags accept 1234, 0664, 0x1234 and may be negative.
+// Boolean flags may be 1, 0, t, f, T, F, true, false, TRUE, FALSE, True, False.
+// TODO Duration flags accept any input valid for time.ParseDuration.
+// TODO []string flags accept a list of comma-separated strings.
 type Option struct {
 	name            string   // name of option
 	aliases         []string // alias names
@@ -29,9 +35,8 @@ type Option struct {
 type OptionHandler func(opt *Option) error
 
 // Options is a set of *Option.
-// The key is the name of the option.
 // The names and aliases and short names and aliases must be unique among all options in the set.
-type Options map[string]*Option
+type Options []*Option
 
 // OptionTypes is a constraint on the types of option values.
 // TODO support float, float64, []string, duration
@@ -41,7 +46,7 @@ type OptionTypes interface {
 
 // NewOptions creates a new empty set of options.
 func NewOptions() Options {
-	return make(Options)
+	return make(Options, 0)
 }
 
 // Name returns the name of a Option.
@@ -78,7 +83,7 @@ func (opt *Option) LongDescription() string {
 // It is a generic function that sets the default value whose type is carried because it is saved as an interface{}.
 // The name and all aliases must not be all whitespace. Whitespace is trimmed.
 // The name and aliases are case insensitive, must be at least two characters, and must be unique.
-// The short name is case sensitive and must be a single character or 0 if none.
+// The short name and short name aliases are runes, are case sensitive, or can be 0 if none.
 // There must be a short name if there are short name aliases.
 // The short name and all short name aliases must be non-whitespace characters and unique.
 // The description and long description can be empty strings.
@@ -168,156 +173,98 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 	return opt, nil
 }
 
-// GetOptionOK gets a option by name, returning ok as false if the option does not exist.
-func GetOptionOK(f Options, name string) (*Option, bool) {
-	opt, ok := f[name]
-	return opt, ok
-}
-
-// GetOption gets a option by name, returns an error if the option does not exist.
-func GetOption(f Options, name string) (*Option, error) {
-	opt, ok := f[name]
-	if ok {
-		return opt, nil
-	} else {
-		return nil, fmt.Errorf("option.GetOption: option %s does not exist", name)
+// NewOptionMust is like NewOption but panics if there is an error.
+func NewOptionMust[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, value V, handler OptionHandler) *Option {
+	opt, err := NewOption(nm, al, sn, sa, desc, longdesc, value, handler)
+	if err != nil {
+		panic(err)
 	}
-}
-
-// GetValueOK is a generic function to get the value of a option.
-// ok is false if the type of the value is not what was expected.
-func GetValueOK[V OptionTypes](f *Option) (V, bool) {
-	v, ok := f.value.(V)
-	return v, ok
-}
-
-// GetValue is a generic function to get the properly typed value of the option.
-// It returns an error if the type of the option value is not what was expected.
-func GetValue[V OptionTypes](f *Option) (V, error) {
-	v, ok := f.value.(V)
-	if !ok {
-		var wantV V
-		return wantV, fmt.Errorf("option.GetValue: for option %s, value is type %T, tried to get as type %T", f.name, f.value, wantV)
-	}
-	return v, nil
-}
-
-// GetValueAny gets the value of a option as an interface{}.
-func (opt *Option) GetValueAny() any {
-	return opt.value
+	return opt
 }
 
 // AddOption adds a option to a set of options.
 // It returns an error if the option name or any alias or short name or short alias
 // conflicts with an existing option in the set.
-func (opts Options) AddOption(opt *Option) error {
+func (opts *Options) AddOption(opt *Option) error {
 	// ensure no conflicts with existing options: names, aliases, short names
-	for optName, optValue := range opts {
-		if optName == opt.name {
-			return fmt.Errorf("option.AddOption: attempt to add already existing option name %s", optName)
+	for _, oldOpt := range *opts {
+		if oldOpt.name == opt.name {
+			return fmt.Errorf("option.AddOption: attempt to add already existing option name %s", oldOpt.name)
 		}
 		for _, newAlias := range opt.aliases {
-			if newAlias == optValue.name {
+			if newAlias == oldOpt.name {
 				return fmt.Errorf("option.AddOption: attempt to add alias %s of option %s which is also the name of another option", newAlias, opt.name)
 			}
-			for _, oldAlias := range optValue.aliases {
+			for _, oldAlias := range oldOpt.aliases {
 				if oldAlias == newAlias {
-					return fmt.Errorf("option.AddOption: attempt to add option %s with alias %s which is also an alias for option %s", opt.name, newAlias, optName)
+					return fmt.Errorf("option.AddOption: attempt to add option %s with alias %s which is also an alias for option %s", opt.name, newAlias, oldOpt.name)
 				}
 			}
 		}
-		if opt.shortName != 0 && opt.shortName == optValue.shortName {
-			return fmt.Errorf("option.AddOption: attempt to add option %s with identical shortname %s as option %s", opt.name, string(opt.shortName), optName)
-		}
-		for _, newShortAlias := range opt.shortAliases {
-			if newShortAlias == optValue.shortName {
-				return fmt.Errorf("option.AddOption: attempt to add shortname alias %c of option %s which is also the shortname of another option", newShortAlias, opt.name)
+		if opt.shortName != 0 {
+			if opt.shortName == oldOpt.shortName {
+				return fmt.Errorf("option.AddOption: attempt to add option %s with identical shortname %s as option %s", opt.name, string(opt.shortName), oldOpt.name)
 			}
-			for _, oldShortAlias := range optValue.shortAliases {
-				if oldShortAlias == newShortAlias {
-					return fmt.Errorf("option.AddOption: attempt to add option %s with shortname alias %c which is also a shortname alias for option %s", opt.name, newShortAlias, optName)
+			for _, newShortAlias := range opt.shortAliases {
+				if newShortAlias == oldOpt.shortName {
+					return fmt.Errorf("option.AddOption: attempt to add shortname alias %c of option %s which is also the shortname of another option %s", newShortAlias, opt.name, oldOpt.name)
+				}
+				for _, oldShortAlias := range oldOpt.shortAliases {
+					if oldShortAlias == newShortAlias {
+						return fmt.Errorf("option.AddOption: attempt to add option %s with shortname alias %c which is also a shortname alias for option %s", opt.name, newShortAlias, oldOpt.name)
+					}
 				}
 			}
 		}
 	}
 	// no conflicts, add the option
-	opts[opt.name] = opt
+	*opts = append(*opts, opt)
 	return nil
 }
 
-// FindOption finds a option within a option set by name or alias
-// It returns nil if the option is not found.
-func (opts Options) FindOption(nm string) *Option {
-	name := strings.ToLower(strings.TrimSpace(nm))
-	for _, f := range opts {
-		if f.name == name {
-			return f
+// AddOptionMust adds an option to a set of options and panics if there is an error.
+func (opts *Options) AddOptionMust(opt *Option) {
+	if err := opts.AddOption(opt); err != nil {
+		panic(err)
+	}
+}
+
+// GetOption gets a option by name, returning nil if the option does not exist.
+// The name is case insensitive and whitespace is trimmed.
+// It can match either the name or any alias of the option.
+func GetOption(f Options, name string) *Option {
+	trimmedName := strings.ToLower(strings.TrimSpace(name))
+	for _, opt := range f {
+		if opt.name == trimmedName {
+			return opt
 		}
-		for _, alias := range f.aliases {
-			if alias == name {
-				return f
+		for _, alias := range opt.aliases {
+			if alias == trimmedName {
+				return opt
 			}
 		}
 	}
 	return nil
 }
 
-// CheckOptions compares two sets of options to ensure there are no duplicates
-// among the names, aliases, short names, and short aliases..
-// It returns true if there are no duplicates, false if there are.
-func CheckOptionsForDuplicates(opts1 Options, opts2 Options) bool {
-	// gather all names and aliases from both sets, check for duplicates
-	allNames := make([]string, 0)
-	for name, opt := range opts1 {
-		allNames = append(allNames, name)
-		allNames = append(allNames, opt.aliases...)
-	}
-	for name, opt := range opts2 {
-		allNames = append(allNames, name)
-		allNames = append(allNames, opt.aliases...)
-	}
-	checker := make(map[string]struct{})
-	for _, nm := range allNames {
-		_, ok := checker[nm]
-		if ok {
-			return false
-		}
-		checker[nm] = struct{}{}
-	}
-	// gather all short names and short aliases from both sets, check for duplicates
-	allShortNames := make([]rune, 0)
-	for _, opt := range opts1 {
-		if opt.shortName != 0 {
-			allShortNames = append(allShortNames, opt.shortName)
-		}
-		allShortNames = append(allShortNames, opt.shortAliases...)
-	}
-	for _, opt := range opts2 {
-		if opt.shortName != 0 {
-			allShortNames = append(allShortNames, opt.shortName)
-		}
-		allShortNames = append(allShortNames, opt.shortAliases...)
-	}
-	shortChecker := make(map[rune]struct{})
-	for _, r := range allShortNames {
-		_, ok := shortChecker[r]
-		if ok {
-			return false
-		}
-		shortChecker[r] = struct{}{}
-	}
-	// if we got here, no duplicates
-	return true
+// GetValue is a generic function to get the value of a option.
+// returns false if the type of the value is not what was expected.
+func GetValue[V OptionTypes](f *Option) (V, bool) {
+	v, ok := f.value.(V)
+	return v, ok
 }
 
-// MergeOptions merges one set of options into another.
-// The options in the second set are copied into the first set.
-// It is assumed there are no duplicates. Use CheckOptionsForDuplicates to check.
-// If there are, the second set will overwrite the first.
-func MergeOptions(opts1 Options, opts2 Options) {
-	for name, opt := range opts2 {
-		opts1[name] = opt
-	}
+// GetValueOK is a generic function to get the value of a option.
+// returns false if the type of the value is not what was expected.
+// Same as GetValue.
+func GetValueOK[V OptionTypes](f *Option) (V, bool) {
+	v, ok := f.value.(V)
+	return v, ok
+}
+
+// GetValueAny gets the value of a option as an interface{}.
+func (opt *Option) GetValueAny() any {
+	return opt.value
 }
 
 // ParseValue sets the value of a option from a string.
@@ -358,8 +305,20 @@ func (fs Options) String() string {
 	s.WriteString("Options:\n")
 	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
 	fmt.Fprintln(w, "Name\tAliases\tShort\tShortAliases\tDefault\tType\tDescription\tLongDescription")
-	for n, f := range fs {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%T\t%s\t%s\n", n, strings.Join(f.aliases, ","), string(f.shortName), string(f.shortAliases), f.value, f.value, f.description, f.longDescription)
+	for _, f := range fs {
+		sn := string(f.shortName)
+		if f.shortName == 0 {
+			sn = "" // space if no short name
+		}
+		sa := make([]string, 0)
+		for _, r := range f.shortAliases {
+			sas := string(r)
+			if r == 0 {
+				sas = "" // space if no short name alias
+			}
+			sa = append(sa, sas)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%T\t%s\t%s\n", f.name, strings.Join(f.aliases, ","), sn, strings.Join(sa, ","), f.value, f.value, f.description, f.longDescription)
 	}
 	w.Flush()
 	return s.String()

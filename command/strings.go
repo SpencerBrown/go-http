@@ -7,36 +7,37 @@ import (
 	"github.com/SpencerBrown/go-http/util"
 )
 
-func (cmd *Command) String() string {
-	if cmd == nil {
-		return "Command: nil\n"
+// String returns a string representation of the Commands and all subcommands
+// we loop through each command and its subcommands recursively,
+// indenting each level for readability
+func (cmds *Commands) String() string {
+	if cmds == nil {
+		return "Commands: nil\n"
 	}
 	var builder strings.Builder
-	cmd.commandTree(&builder, 0)
+	builder.WriteString("Commands:\n")
+	showCommands(&builder, cmds, 0)
 	return builder.String()
 }
 
-func (cmd *Command) commandTree(builder *strings.Builder, indent int) string {
-	if cmd == nil {
-		return ""
+func showCommands(builder *strings.Builder, cmds *Commands, indent int) {
+	for _, cmd := range *cmds {
+		cmd.showCommand(builder, indent)
+		for _, subcmd := range cmd.subcommands {
+			subcmd.showCommand(builder, indent+1)
+			showCommands(builder, &subcmd.subcommands, indent+1)
+		}
 	}
-	// stringify this command at the indent level
-	builder.WriteString(util.Indent(cmd.OneString(), indent))
-	// output the subcommands indented recursively
-	for _, subcmd := range cmd.sub {
-		subcmd.commandTree(builder, indent+2)
-	}
-	return builder.String()
 }
 
-func (cmd *Command) OneString() string {
+func (cmd *Command) showCommand(builder *strings.Builder, indent int) {
 	if cmd == nil {
-		return ""
+		builder.WriteString("Command: nil\n")
+		return
 	}
-	var builder strings.Builder
 	builder.WriteString("Command: " + cmd.name + "\n")
-	builder.WriteString(util.Indent(fmt.Sprintf("Aliases: %s\n", strings.Join(cmd.alias, "'")), 1))
-	builder.WriteString(util.Indent(fmt.Sprintf("Description: %s\n", cmd.description), 1))
-	builder.WriteString(util.Indent(cmd.flags.String(), 1))
-	return builder.String()
+	builder.WriteString(util.Indent(fmt.Sprintf("Aliases: %s\n", strings.Join(cmd.alias, "'")), indent+1))
+	builder.WriteString(util.Indent(fmt.Sprintf("Description: %s\n", cmd.description), indent+1))
+	builder.WriteString(util.Indent(fmt.Sprintf("Long Description: %s\n", cmd.longDescription), indent+1))
+	builder.WriteString(util.Indent(cmd.options.String(), indent+1))
 }

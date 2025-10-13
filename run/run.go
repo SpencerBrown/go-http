@@ -18,7 +18,7 @@ type Runnable interface {
 }
 
 type Runner struct {
-	Command     *command.Command       // The template for the expected command line with command, subcommands, flags, and args
+	Commands    *command.Commands      // The template for the expected command line 
 	Args        []string               // The actual command line
 	GetEnvVar   func(string) string    // A function to get an environment variable
 	GetWorkDir  func() (string, error) // A function to get the working directory
@@ -72,7 +72,7 @@ func (r *Runner) String() string {
 	// 		panic(fmt.Sprintf("Internal error executing template for RunArgs: %v", err))
 	// 	}
 	s.WriteString("---Runner struct---\n")
-	s.WriteString(r.Command.String())
+	s.WriteString(r.Commands.String())
 	workdir, err := r.GetWorkDir()
 	if err == nil {
 		fmt.Fprintf(&s, "Working directory: %s\n", workdir)

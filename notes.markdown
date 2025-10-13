@@ -14,15 +14,20 @@ A single dash indicates a single letter option. There can be multiple aliases of
 
 Data should look like:
 
-type struct Level []Command
+```go
+type Commands []Command
+type Args []string
+
 type struct Command {
 	name string
+	subcommands Commands
 	description string
 	longDescription string
 	aliases []string
 	options []Option
 	handler commandHandler
 }
+
 type struct Option {
 	name string
 	description string
@@ -31,5 +36,24 @@ type struct Option {
 	shortname rune
 	shortaliases []rune
 	value any
+	handler optionHandler
 }
+
 type commandHandler func(cmd *Command) error 
+
+type optionHandler func(opt *Option) error
+```
+
+after setting up the commands, we will have:
+
+Commands (list of Command)
+	Command
+		options (list of Option)
+		subcommands (Commands - list of Command)
+
+at each level, Commands must be unique both in name and aliases
+
+parsing of the command string results in:
+
+a Commands which is a list of the actual commands and subcommands from the string with all the options for each command set to the specified values (or the default value)
+an Args which is a list of the arguments from the command string

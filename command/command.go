@@ -5,11 +5,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/SpencerBrown/go-http/flag"
+	"github.com/SpencerBrown/go-http/option"
 )
 
 // Command represents a command or subcommand in a command/subcommand tree
-// flags represents the flags for this command at this level of the tree
+// options represents the options for this command at this level of the tree
 // parent is the parent command, nil if this is the root command
 // sub is a slice of subcommands at this level of the tree
 // name is the name of the command
@@ -30,14 +30,15 @@ import (
 // The func associated with a Command is what is called when the provided command line maps to this Command
 // The func is given a ParsedCommand with the command line arguments and flags
 type Command struct {
-	name        string                     // Name of command
-	alias       []string                   // Aliases for command
-	description string                     // Description of command
-	flags       flag.Flags                 // Flags for this command
-	// handler     func(*ParsedCommand) error // Handler for this command
-	parent      *Command                   // Parent command
-	sub         []*Command                 // Subcommands
+	name            string         // Name of command
+	alias           []string       // Aliases for command
+	description     string         // Description of command
+	longDescription string         // Long description of command
+	options         option.Options // Flags for this command
+	subcommands     Commands       // Subcommands that can follow this command
 }
+
+type Commands []*Command
 
 // Name returns the command name
 func (cmd *Command) Name() string {
@@ -54,27 +55,35 @@ func (cmd *Command) Description() string {
 	return cmd.description
 }
 
-// Flags returns the Flags for the command
-func (cmd *Command) Flags() flag.Flags {
-	return cmd.flags
+// LongDescription returns the command long description
+func (cmd *Command) LongDescription() string {
+	return cmd.longDescription
 }
 
-// NewCommand creates a new command with the given name, aliases, description, and flags
+// Options returns the Options for the command
+func (cmd *Command) Options() option.Options {
+	return cmd.options
+}
+
+// Subcommands returns the subcommands for the command
+func (cmd *Command) Subcommands() Commands {
+	return cmd.subcommands
+}
+
+// NewCommand creates a new command with the given name, aliases, descriptions, and options
 // command name and any aliases cannot be blank, and cannot duplicate each other
 // command name and aliases are case insensitive and can include unicode characters
-func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
+func NewCommand(nm string, al []string, desc string, longDesc string, opts option.Options) (*Command, error) {
 	// do basic checks of parameters
 	name := strings.ToLower(strings.TrimSpace(nm))
-	nameLength := utf8.RuneCountInString(name)
-	if nameLength == 0 {
+	if utf8.RuneCountInString(name) == 0 {
 		panic("command.NewCommand called with blank command name")
 	}
 	aliases := make([]string, 0)
 	for _, aliasuntrimmed := range al {
 		alias := strings.ToLower(strings.TrimSpace(aliasuntrimmed))
-		aliasLength := utf8.RuneCountInString(alias)
-		if aliasLength == 0 {
-			panic("command.NewCommand called with a blank alias")
+		if utf8.RuneCountInString(alias) == 0 {
+			return nil, fmt.Errorf("command.NewCommand called with a blank alias")
 		}
 		aliases = append(aliases, alias)
 	}
@@ -86,62 +95,67 @@ func NewCommand(nm string, al []string, desc string, flgs flag.Flags) *Command {
 	for _, str := range checker {
 		_, ok := chk[str]
 		if ok {
-			panic(fmt.Sprintf("command.NewCommand called with duplicate name or alias %s", str))
+			return nil, fmt.Errorf("command.NewCommand called with duplicate name or alias %s", str)
 		}
 		chk[str] = struct{}{}
 	}
 	return &Command{
-		name:        name,
-		alias:       aliases,
-		description: desc,
-		flags:       flgs,
-		sub:         nil,
-	}
+		name:            name,
+		alias:           aliases,
+		description:     desc,
+		longDescription: longDesc,
+		options:         opts,
+		subcommands:     nil,
+	}, nil
 }
 
-// SetSub adds a subcommand to the command/subcommand tree
-// We check to ensure that none of the subcommands at this level of the tree or above
-// duplicate each others' names or aliases or flags
-// We return the subcommand so that we can chain SetSub calls
-func (parentcmd *Command) SetSub(subcmd *Command) *Command {
-	if parentcmd == nil {
-		panic("command.SetSub called with nil parent command")
+// NewCommandMust is like NewCommand but panics if there is an error.
+func NewCommandMust(nm string, al []string, desc string, longDesc string, opts option.Options) *Command {
+	cmd, err := NewCommand(nm, al, desc, longDesc, opts)
+	if err != nil {
+		panic(err)
 	}
-	if subcmd == nil {
-		panic("command.SetSub called with nil subcommand")
+	return cmd
+}
+
+// NewCommands creates a new Commands slice
+func NewCommands() *Commands {
+	newcmds := make(Commands, 0)
+	return &newcmds
+}
+
+// AddCommand adds a subcommand to the given Commands slice
+// does nothing if cmds or cmd is nil, or if the cmd name or any alias duplicates an existing name or alias in cmds
+func (cmds *Commands) AddCommand(cmd *Command) error {
+	if cmds == nil {
+		return fmt.Errorf("command.AddCommand called with nil command list")
 	}
-	if subcmd.parent != nil {
-		panic("command.SetSub called with subcommand that already has a parent")
+	if cmd == nil {
+		return fmt.Errorf("command.AddCommand called with nil command")
 	}
 	// ensure no duplicates among the names and aliases
 	nameList := make([]string, 0)
-	nameList = append(nameList, subcmd.name)
-	nameList = append(nameList, subcmd.alias...)
-	for _, cmd := range parentcmd.sub {
-		nameList = append(nameList, cmd.name)
-		nameList = append(nameList, cmd.alias...)
-	}
-	for cmd := parentcmd; cmd != nil; cmd = cmd.parent {
-		nameList = append(nameList, cmd.name)
-		nameList = append(nameList, cmd.alias...)
+	nameList = append(nameList, cmd.name)
+	nameList = append(nameList, cmd.alias...)
+	for _, existingCmd := range *cmds {
+		nameList = append(nameList, existingCmd.name)
+		nameList = append(nameList, existingCmd.alias...)
 	}
 	dupNameCheck := make(map[string]struct{})
 	for _, str := range nameList {
 		_, ok := dupNameCheck[str]
 		if ok {
-			panic(fmt.Sprintf("command.SetSub called with duplicate name or alias %s", str))
+			return fmt.Errorf("command.AddCommand called with duplicate name or alias %s", str)
 		}
 		dupNameCheck[str] = struct{}{}
 	}
-	// ensure no duplicates among the flags for this command and its parent commands
-	thisFlags := subcmd.flags
-	for cmd := parentcmd; cmd != nil; cmd = cmd.parent {
-		if !flag.CheckFlagsForDuplicates(thisFlags, cmd.flags) {
-			panic("command.SetSub called with subcommand that has duplicate flags with a parent command")
-		}
+	*cmds = append(*cmds, cmd)
+	return nil
+}
+
+// AddCommandMust adds an option to a set of options and panics if there is an error.
+func (cmds *Commands) AddCommandMust(cmd *Command) {
+	if err := cmds.AddCommand(cmd); err != nil {
+		panic(err)
 	}
-	// Add subcommand
-	subcmd.parent = parentcmd
-	parentcmd.sub = append(parentcmd.sub, subcmd)
-	return subcmd
 }

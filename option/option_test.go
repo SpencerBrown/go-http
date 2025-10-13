@@ -210,9 +210,9 @@ func TestNewOption(t *testing.T) {
 
 func TestGetValue(t *testing.T) {
 	opt, _ := NewOption("test", nil, 't', nil, "test", "test", "value", nil)
-	v, err := GetValue[string](opt)
-	if err != nil {
-		t.Errorf("GetValue() error: %v", err)
+	v, ok := GetValue[string](opt)
+	if !ok {
+		t.Errorf("GetValue() type assertion failed")
 	}
 	if v != "value" {
 		t.Errorf("GetValue[string]() = %s, want value", v)
@@ -236,27 +236,6 @@ func TestAddOption(t *testing.T) {
 	}
 }
 
-func TestFindOption(t *testing.T) {
-	opts := NewOptions()
-	opt, _ := NewOption("test", []string{"alias"}, 'x', nil, "test", "test", "value", nil)
-	err := opts.AddOption(opt)
-	if err != nil {
-		t.Errorf("AddOption() error: %v", err)
-	}
-	found := opts.FindOption("test")
-	if found == nil {
-		t.Error("FindOption() returned nil for existing option")
-	}
-	foundAlias := opts.FindOption("alias")
-	if foundAlias == nil {
-		t.Error("FindOption() returned nil for alias")
-	}
-	notFound := opts.FindOption("nonexistent")
-	if notFound != nil {
-		t.Error("FindOption() returned non-nil for nonexistent option")
-	}
-}
-
 func TestParseValue(t *testing.T) {
 	optInt, _ := NewOption("intopt", nil, 0, nil, "int", "int", 0, nil)
 	err := optInt.ParseValue("42")
@@ -276,55 +255,22 @@ func TestParseValue(t *testing.T) {
 		t.Error("ParseValue() bool value = false, want true")
 	}
 }
-func TestGetOptionOK(t *testing.T) {
-	opts := NewOptions()
-	opt, _ := NewOption("test", []string{"alias"}, 'x', nil, "desc", "longdesc", "value", nil)
-	err := opts.AddOption(opt)
-	if err != nil {
-		t.Fatalf("AddOption() error: %v", err)
-	}
-
-	gotOpt, ok := GetOptionOK(opts, "test")
-	if !ok {
-		t.Error("GetOptionOK() did not find existing option by name")
-	}
-	if gotOpt != opt {
-		t.Error("GetOptionOK() returned wrong option for name")
-	}
-
-	gotOptAlias, okAlias := GetOptionOK(opts, "alias")
-	if okAlias {
-		t.Error("GetOptionOK() should not find option by alias")
-	}
-	if gotOptAlias != nil {
-		t.Error("GetOptionOK() should return nil for alias")
-	}
-
-	gotOptMissing, okMissing := GetOptionOK(opts, "missing")
-	if okMissing {
-		t.Error("GetOptionOK() should not find missing option")
-	}
-	if gotOptMissing != nil {
-		t.Error("GetOptionOK() should return nil for missing option")
-	}
-}
-
 func TestGetOption(t *testing.T) {
 	opts := NewOptions()
 	opt, _ := NewOption("test", nil, 'x', nil, "desc", "longdesc", "value", nil)
 	_ = opts.AddOption(opt)
 
-	gotOpt, err := GetOption(opts, "test")
-	if err != nil {
-		t.Errorf("GetOption() error: %v", err)
+	gotOpt := GetOption(opts, "test")
+	if gotOpt == nil {
+		t.Errorf("GetOption() error: option not found")
 	}
 	if gotOpt != opt {
 		t.Error("GetOption() returned wrong option")
 	}
 
-	_, err = GetOption(opts, "missing")
-	if err == nil {
-		t.Error("GetOption() should return error for missing option")
+	gotOptMissing := GetOption(opts, "missing")
+	if gotOptMissing != nil {
+		t.Error("GetOption() should return nil for missing option")
 	}
 }
 
