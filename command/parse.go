@@ -7,12 +7,19 @@ import (
 	"github.com/SpencerBrown/go-http/option"
 )
 
-// ParsedCommand represents the parsed command line arguments and flags
+// ParsedCommands represents the parsed command line arguments and the parsed commands themselves with options
 // args is the command line arguments
-// flags is the consolidated set of flags for the command
+type ParsedCommands struct {
+	commands []ParsedCommand // parsed commands in order
+	args     []string        // command line arguments
+}
+
+// ParsedCommand represents a parsed command with its options as specified and defaulted
+// The command name is the actual name not an alias
+// The options are the actual name and value of the option, not an alias or short name
 type ParsedCommand struct {
-	commands Commands   // the parsed command and its subcommands in order, each has its options
-	args  []string   // command line arguments
+	name    string               // actual command name, not an alias
+	options option.ParsedOptions // actual options for this command, not aliases or short names
 }
 
 // Parse parses the raw args and sets the flags and args accordingly
@@ -30,13 +37,20 @@ type ParsedCommand struct {
 // and the args slice in the ParsedCommand is set to the remaining command line arguments.
 // The flag can be --name or -shortname, the value can have an = or not.
 // --help automatically prints out the flags and parent commands for that subcommand branch of the tree.
-func Parse(cmds Commands, cmdArgs []string) (*ParsedCommand, error) {
-	if cmds == nil {
-		return nil, fmt.Errorf("command.Parse called with nil Commands")
+func Parse(cmds Commands, cmdArgs []string) (*ParsedCommands, error) {
+	if cmds == nil || len(cmds) == 0 {
+		return nil, fmt.Errorf("command.Parse called with nil or empty Commands")
 	}
-	currentCmds := cmds
-	parsedCmd := ParsedCommand{}
-	iArg := 0 // Tracks the first argument after parsing the commands and flags
+	// parsedCmds is what we will return, we build this as we parse the command line
+	parsedCmds := ParsedCommands{
+		commands: make([]ParsedCommand, 0),
+		args:     make([]string, 0),
+	}
+	// nextCommand tracks where we are in the list of commands and parsed commands
+	nextCommand := 0
+	// iArg is the index of cmdArgs where we are at the moment, when we exit the loop it will point to the first arg after options and commands
+	iArg := 0 
+	// We loop through the command line arguments, parsing commands and options
 	for ; iArg < len(cmdArgs); iArg++ {
 		cmdArg := cmdArgs[iArg]
 		if cmdArg == "--" {
@@ -49,9 +63,25 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommand, error) {
 			break
 		}
 		if strings.HasPrefix(cmdArg, "--") {
-			// find the flag with the double dash prefix
+			// find the option with the double dash prefix
 			// note we have already checked for a bare "--" so we know there's more in the arg string
-			flagNameValue := strings.Split(cmdArg[2:], "=") // it might have a value after the "="
+			// it could be --option=value or --option value or just --option for a boolean flag
+			// so we need to parse it accordingly
+			optName, optValue, hasEquals := strings.Cut(cmdArg[2:], "=") 
+			if hasEquals {
+				// it's of the form --option=value
+			} else {
+				// it's of the form --option value or just --option
+				// see if it's a boolean option
+				theOption := option.GetOption(findFlag(cmds[nextCommand], optName))
+				if iArg < len(cmdArgs)-1 { // make sure there's another arg for the value
+					iArg++
+					optValue = cmdArgs[iArg]
+				}
+
+
+
+
 			var flagName, flagValue string
 			flagOK := false
 			switch len(flagNameValue) {
@@ -67,12 +97,15 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommand, error) {
 				flagValue = flagNameValue[1]
 				flagOK = true
 			default:
-				// leave flagOK as false
+				// there's more than one equals sign, it is possibly valid if the value has equals signs in it
+				flagName = flagNameValue[0]
+				flagValue = strings.Join(flagNameValue[1:], "=")
+				flagOK = true
 			}
 			if !flagOK {
 				return nil, fmt.Errorf("invalid flag %s", cmdArg)
 			}
-			theOption := option.GetOption(findFlag(currentCmd, flagName)
+			theOption := option.GetOption(findFlag(currentCmd, flagName))
 			if theOption == nil {
 				return nil, fmt.Errorf("unknown flag %s", cmdArg)
 			}
@@ -95,6 +128,7 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommand, error) {
 			}
 		}
 	}
+
 	// set the names of the command and its subcommands in order from the root to the current command
 	for cmd := currentCmd; cmd != nil; cmd = cmd.parent {
 		parsedCmd.names = append([]string{cmd.name}, parsedCmd.names...)
@@ -111,21 +145,6 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommand, error) {
 		flag.MergeFlags(parsedCmd.flags, cmd.flags)
 	}
 	return &parsedCmd, nil
-}
-
-// FindFlag finds a flag in the command/subcommand tree
-// It searches the current command and its parent commands for the flag
-func findFlag(cmd *Command, flagName string) *flag.Flag {
-	if cmd == nil {
-		return nil
-	}
-	// find the flag at this level of the command tree
-	f := cmd.flags.FindFlag(flagName)
-	if f != nil {
-		return f
-	}
-	// find the flag in a parent command with a recursive call
-	return findFlag(cmd.parent, flagName)
 }
 
 // String returns a string representation of the ParsedCommand

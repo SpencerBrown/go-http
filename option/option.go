@@ -44,6 +44,13 @@ type OptionTypes interface {
 	int | int64 | string | bool
 }
 
+type ParsedOption struct {
+	name  string // actual option name, not an alias
+	value any    // actual option value, either set or default
+}
+
+type ParsedOptions []ParsedOption
+
 // NewOptions creates a new empty set of options.
 func NewOptions() Options {
 	return make(Options, 0)
@@ -254,17 +261,41 @@ func GetValue[V OptionTypes](f *Option) (V, bool) {
 	return v, ok
 }
 
-// GetValueOK is a generic function to get the value of a option.
-// returns false if the type of the value is not what was expected.
-// Same as GetValue.
-func GetValueOK[V OptionTypes](f *Option) (V, bool) {
+// GetValueMust is like GetValue but panics if the type assertion fails.
+func GetValueMust[V OptionTypes](f *Option) V {
 	v, ok := f.value.(V)
-	return v, ok
+	if !ok {
+		var zero V
+		panic(fmt.Sprintf("option.GetValueMust: expected type %T for option %s but got %T", zero, f.name, f.value))
+	}
+	return v
 }
 
 // GetValueAny gets the value of a option as an interface{}.
 func (opt *Option) GetValueAny() any {
 	return opt.value
+}
+
+// GetParsedValue is a generic function to get the value of a parsed option.
+// returns false if the type of the value is not what was expected.
+func GetParsedValue[V OptionTypes](f *ParsedOption) (V, bool) {
+	v, ok := f.value.(V)
+	return v, ok
+}
+
+// GetParsedValueAny gets the value of a parsed option as an interface{}.
+func (opt *ParsedOption) GetParsedValueAny() any {
+	return opt.value
+}
+
+// GetParsedValueMust is like GetParsedValue but panics if the type assertion fails.
+func GetParsedValueMust[V OptionTypes](f *ParsedOption) V {
+	v, ok := f.value.(V)
+	if !ok {
+		var zero V
+		panic(fmt.Sprintf("option.GetParsedValueMust: expected type %T for parsed option %s but got %T", zero, f.name, f.value))
+	}
+	return v
 }
 
 // ParseValue sets the value of a option from a string.
@@ -299,7 +330,7 @@ func (opt *Option) ParseValue(s string) error {
 	return nil
 }
 
-// String returns a string representation of a Option, useful for debugging.
+// String returns a string representation of an Options, useful for debugging.
 func (fs Options) String() string {
 	s := strings.Builder{}
 	s.WriteString("Options:\n")
@@ -319,6 +350,61 @@ func (fs Options) String() string {
 			sa = append(sa, sas)
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%T\t%s\t%s\n", f.name, strings.Join(f.aliases, ","), sn, strings.Join(sa, ","), f.value, f.value, f.description, f.longDescription)
+	}
+	w.Flush()
+	return s.String()
+}
+
+// NewParsedOptions creates a new empty set of parsed options.
+func NewParsedOptions() ParsedOptions {
+	return make(ParsedOptions, 0)
+}
+
+// NewParsedOption creates a new parsed option.
+func NewParsedOption(name string, value any) ParsedOption {
+	return ParsedOption{
+		name:  name,
+		value: value,
+	}
+}
+
+// AddParsedOption adds a parsed option to a set of parsed options.
+// We check for duplicates by name.
+func (ps *ParsedOptions) AddParsedOption(p ParsedOption) error {
+	for _, existing := range *ps {
+		if existing.name == p.name {
+			return fmt.Errorf("option.AddParsedOption: duplicate option name %s", p.name)
+		}
+	}
+	*ps = append(*ps, p)
+	return nil
+}
+
+// AddParsedOptionMust adds a parsed option to a set of parsed options and panics if there is an error.
+func (ps *ParsedOptions) AddParsedOptionMust(p ParsedOption) {
+	if err := ps.AddParsedOption(p); err != nil {
+		panic(err)
+	}
+}
+
+// GetParsedOption gets a parsed option by name, returning nil if the option does not exist.
+func (ps *ParsedOptions) GetParsedOption(name string) *ParsedOption {
+	for _, p := range *ps {
+		if p.name == name {
+			return &p
+		}
+	}
+	return nil
+}
+
+// String returns a string representation of a ParsedOptions, useful for debugging.
+func (ps ParsedOptions) String() string {
+	s := strings.Builder{}
+	s.WriteString("ParsedOptions:\n")
+	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
+	fmt.Fprintln(w, "Name\tValue\tType")
+	for _, p := range ps {
+		fmt.Fprintf(w, "%s\t%v\t%T\n", p.name, p.value, p.value)
 	}
 	w.Flush()
 	return s.String()
