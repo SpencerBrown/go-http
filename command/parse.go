@@ -78,10 +78,6 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommands, error) {
 					iArg++
 					optValue = cmdArgs[iArg]
 				}
-
-
-
-
 			var flagName, flagValue string
 			flagOK := false
 			switch len(flagNameValue) {
@@ -112,7 +108,7 @@ func Parse(cmds Commands, cmdArgs []string) (*ParsedCommands, error) {
 			// parse the flag value according to the type of the default value in the flag
 			if err := theOption.ParseValue(flagValue); err != nil {
 				return nil, err
-			}
+			
 		} else {
 			// check if the arg is a command at the current point in the command tree
 			foundCmd := false

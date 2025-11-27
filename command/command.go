@@ -9,22 +9,14 @@ import (
 	"github.com/SpencerBrown/go-http/util"
 )
 
-// Command represents a command or subcommand in a command/subcommand tree
+// Command represents a command or subcommand in a command/subcommand tree. The root of the tree is a Commands, representing a set of Command. 
 // options represents the options for this command at this level of the tree
-// parent is the parent command, nil if this is the root command
-// sub is a slice of subcommands at this level of the tree
+// subcommands is a Commands representing the subcommands that can follow this command
 // name is the name of the command
 // alias is a slice of aliases for the command
-// description is a description of the command
-// The command name and aliases must be unique among the subtree starting at this command
-//
-// So the syntax is something like:
-//
-//	 command flags subcommand flags subcommand flags args
-//	 where flags start with "-" for short form and "--" for long form followed by the flag name and value, separated by "=" or " "
-//	 and args are the remaining command line arguments after the last flags or after "--" if needed to separate commands from args
-//		and subcommands can be nested arbitrarily deep
-//	 for boolean flags, use --flag=false or -f=false to turn off the flag
+// description is a description of the command, longDescription is a longer description of the command
+// The command name and aliases must be unique at this level of the tree. Command names and aliases are case insensitive.
+// The command line is parsed left to right, matching command names and aliases at each level of the tree.
 //
 // Arguments start at the first unrecognized token, or after the terminator "--"
 // The --help flag automatically prints out the command syntax and flags
@@ -39,7 +31,8 @@ type Command struct {
 	subcommands     Commands       // Subcommands that can follow this command
 }
 
-type Commands []*Command
+// Commands is a set of Command representing a set of commands at this level of the command tree
+type Commands map[string](*Command)
 
 // Name returns the command name
 func (cmd *Command) Name() string {
@@ -119,21 +112,21 @@ func NewCommandMust(nm string, al []string, desc string, longDesc string, opts o
 	return cmd
 }
 
-// NewCommands creates a new Commands slice
+// NewCommands creates a new Commands
 func NewCommands() Commands {
 	return make(Commands, 0)
 }
 
-// AddCommand adds a subcommand to the given Commands slice
-// does nothing if cmds or cmd is nil, or if the cmd name or any alias duplicates an existing name or alias in cmds
+// AddCommand adds a Command to a Commands
+// checks for duplicate names and aliases among existing commands
 func (cmds *Commands) AddCommand(cmd *Command) error {
 	if cmds == nil {
-		return fmt.Errorf("command.AddCommand called with nil command list")
+		return fmt.Errorf("command.AddCommand called with nil Commands")
 	}
 	if cmd == nil {
-		return fmt.Errorf("command.AddCommand called with nil command")
+		return fmt.Errorf("command.AddSubcommand called with nil Command")
 	}
-	// ensure no duplicates among the names and aliases
+	// ensure no duplicates among the names and aliases at this level of the tree
 	nameList := make([]string, 0)
 	nameList = append(nameList, cmd.name)
 	nameList = append(nameList, cmd.alias...)
@@ -145,17 +138,38 @@ func (cmds *Commands) AddCommand(cmd *Command) error {
 	for _, str := range nameList {
 		_, ok := dupNameCheck[str]
 		if ok {
-			return fmt.Errorf("command.AddCommand called with duplicate name or alias %s", str)
+			return fmt.Errorf("command.AddSubcommand called with duplicate name or alias %s", str)
 		}
 		dupNameCheck[str] = struct{}{}
 	}
-	*cmds = append(*cmds, cmd)
+	(*cmds)[cmd.name] = cmd // add the Command to the Commands
 	return nil
 }
 
-// AddCommandMust adds an option to a set of options and panics if there is an error.
+// AddCommandMust adds a Command to aCommands and panics if there is an error.
 func (cmds *Commands) AddCommandMust(cmd *Command) {
 	if err := cmds.AddCommand(cmd); err != nil {
+		panic(err)
+	}
+}
+
+// AddSubcommand adds a Command as a subcommand to this Command
+func (cmd *Command) AddSubcommand(subcmd *Command) error {
+	if cmd == nil {
+		return fmt.Errorf("command.AddSubcommand called with nil Command")
+	}
+	if subcmd == nil {
+		return fmt.Errorf("command.AddSubcommand called with nil subcommand")
+	}
+	if cmd.subcommands == nil {
+		cmd.subcommands = NewCommands()
+	}
+	return cmd.subcommands.AddCommand(subcmd)
+}
+
+// AddSubcommandMust adds a Command as a subcommand to this Command and panics if there is an error.
+func (cmd *Command) AddSubcommandMust(subcmd *Command) {
+	if err := cmd.AddSubcommand(subcmd); err != nil {
 		panic(err)
 	}
 }

@@ -23,9 +23,9 @@ func main() {
 	}
 
 	opts := option.NewOptions()
-	opts.AddOptionMust(option.NewOptionMust("foo", nil, 'f', []rune{'g'}, "first", "first part of foobar", "one", nil))
-	opts.AddOptionMust(option.NewOptionMust("bar", nil, 'b', nil, "second", "second part of foobar", 2, nil))
-	opts.AddOptionMust(option.NewOptionMust("foobar", []string{"fb"}, 0, nil, "is?", "is it?", true, nil))
+	opts.AddOptionMust(option.NewOptionMust("foo", nil, 'f', []rune{'g'}, "first", "first part of foobar", false, "one", nil))
+	opts.AddOptionMust(option.NewOptionMust("bar", nil, 'b', nil, "second", "second part of foobar", false, 2, nil))
+	opts.AddOptionMust(option.NewOptionMust("foobar", []string{"fb"}, 0, nil, "is?", "is it?", false, true, nil))
 
 	cmds := command.Commands{}
 	cmds.AddCommandMust(command.NewCommandMust("foobarfoo", []string{"fbf"}, "foobar", "foobar command", opts))

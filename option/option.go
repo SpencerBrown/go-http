@@ -25,6 +25,7 @@ type Option struct {
 	shortAliases    []rune   // short option aliases
 	description     string   // description of option
 	longDescription string   // long description of option
+	hasDefault      bool     // true if option has a default value
 	value           any      // default value and type of option; also holds the current value
 	// the value is an interface and its type is the type of the value, constrainted to OptionTypes
 	handler OptionHandler // handler to call for this option, or nil if none
@@ -34,27 +35,26 @@ type Option struct {
 // It returns an error if there was a problem handling the option.
 type OptionHandler func(opt *Option) error
 
-// Options is a set of *Option.
-// The names and aliases and short names and aliases must be unique among all options in the set.
-type Options []*Option
-
 // OptionTypes is a constraint on the types of option values.
 // TODO support float, float64, []string, duration
 type OptionTypes interface {
 	int | int64 | string | bool
 }
 
+// Options is a set of options.
+type Options []*Option
+
+// ParsedOption is a single parsed option.
 type ParsedOption struct {
-	name  string // actual option name, not an alias
-	value any    // actual option value, either set or default
+	name        string // actual option name, not an alias
+	invokedName string // name as invoked on command line (could be alias or short name)
+	isDefault   bool   // true if default value was used
+	isSet       bool   // true if option was set explicitly
+	value       any    // actual option value, either set or default
 }
 
+// ParsedOptions is a set of parsed options.
 type ParsedOptions []ParsedOption
-
-// NewOptions creates a new empty set of options.
-func NewOptions() Options {
-	return make(Options, 0)
-}
 
 // Name returns the name of a Option.
 func (opt *Option) Name() string {
@@ -97,7 +97,7 @@ func (opt *Option) LongDescription() string {
 // The value must be one of the types in OptionTypes: int, int64, string, or bool.
 // Unicode runes and strings are supported.
 // Returns an error if anything is not valid.
-func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, value V, handler OptionHandler) (*Option, error) {
+func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, hasDef bool, value V, handler OptionHandler) (*Option, error) {
 	// Trim and lowercase the name and aliases, check for duplicates or single character names/aliases
 	name := strings.ToLower(strings.TrimSpace(nm)) // names are case insensitive
 	nameLength := utf8.RuneCountInString(name)
@@ -138,7 +138,7 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 	if shortAliases == nil {
 		shortAliases = make([]rune, 0)
 	}
-	if sn == 0 {
+	if sn == 0 { // if no shortname
 		if len(shortAliases) > 0 {
 			return nil, fmt.Errorf("option.NewOption called with shortname aliases but no shortname")
 		}
@@ -174,6 +174,7 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 		shortAliases:    shortAliases,
 		description:     desc,
 		longDescription: longdesc,
+		hasDefault:      hasDef,
 		value:           value,
 		handler:         handler,
 	}
@@ -181,8 +182,8 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 }
 
 // NewOptionMust is like NewOption but panics if there is an error.
-func NewOptionMust[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, value V, handler OptionHandler) *Option {
-	opt, err := NewOption(nm, al, sn, sa, desc, longdesc, value, handler)
+func NewOptionMust[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc string, longdesc string, hasDef bool, value V, handler OptionHandler) *Option {
+	opt, err := NewOption(nm, al, sn, sa, desc, longdesc, hasDef, value, handler)
 	if err != nil {
 		panic(err)
 	}
@@ -236,10 +237,10 @@ func (opts *Options) AddOptionMust(opt *Option) {
 	}
 }
 
-// GetOption gets a option by name, returning nil if the option does not exist.
+// GetOptionByName gets a option by name, returning nil if the option does not exist.
 // The name is case insensitive and whitespace is trimmed.
 // It can match either the name or any alias of the option.
-func GetOption(f Options, name string) *Option {
+func GetOptionByName(f Options, name string) *Option {
 	trimmedName := strings.ToLower(strings.TrimSpace(name))
 	for _, opt := range f {
 		if opt.name == trimmedName {
@@ -247,6 +248,22 @@ func GetOption(f Options, name string) *Option {
 		}
 		for _, alias := range opt.aliases {
 			if alias == trimmedName {
+				return opt
+			}
+		}
+	}
+	return nil
+}
+
+// GetOptionByShortName gets a option by short name, returning nil if the option does not exist.
+// It can match either the short name or any short name alias of the option.
+func GetOptionByShortName(f Options, shortName rune) *Option {
+	for _, opt := range f {
+		if opt.shortName == shortName {
+			return opt
+		}
+		for _, shortAlias := range opt.shortAliases {
+			if shortAlias == shortName {
 				return opt
 			}
 		}
@@ -330,6 +347,11 @@ func (opt *Option) ParseValue(s string) error {
 	return nil
 }
 
+// NewOptions creates a new empty set of options.
+func NewOptions() Options {
+	return make(Options, 0)
+}
+
 // String returns a string representation of an Options, useful for debugging.
 func (fs Options) String() string {
 	s := strings.Builder{}
@@ -349,7 +371,11 @@ func (fs Options) String() string {
 			}
 			sa = append(sa, sas)
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%T\t%s\t%s\n", f.name, strings.Join(f.aliases, ","), sn, strings.Join(sa, ","), f.value, f.value, f.description, f.longDescription)
+		if f.hasDefault {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%v\t%T\t%s\t%s\n", f.name, strings.Join(f.aliases, ","), sn, strings.Join(sa, ","), f.value, f.value, f.description, f.longDescription)
+		} else {
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t<none>\t%T\t%s\t%s\n", f.name, strings.Join(f.aliases, ","), sn, strings.Join(sa, ","), f.value, f.description, f.longDescription)
+		}
 	}
 	w.Flush()
 	return s.String()
@@ -358,33 +384,6 @@ func (fs Options) String() string {
 // NewParsedOptions creates a new empty set of parsed options.
 func NewParsedOptions() ParsedOptions {
 	return make(ParsedOptions, 0)
-}
-
-// NewParsedOption creates a new parsed option.
-func NewParsedOption(name string, value any) ParsedOption {
-	return ParsedOption{
-		name:  name,
-		value: value,
-	}
-}
-
-// AddParsedOption adds a parsed option to a set of parsed options.
-// We check for duplicates by name.
-func (ps *ParsedOptions) AddParsedOption(p ParsedOption) error {
-	for _, existing := range *ps {
-		if existing.name == p.name {
-			return fmt.Errorf("option.AddParsedOption: duplicate option name %s", p.name)
-		}
-	}
-	*ps = append(*ps, p)
-	return nil
-}
-
-// AddParsedOptionMust adds a parsed option to a set of parsed options and panics if there is an error.
-func (ps *ParsedOptions) AddParsedOptionMust(p ParsedOption) {
-	if err := ps.AddParsedOption(p); err != nil {
-		panic(err)
-	}
 }
 
 // GetParsedOption gets a parsed option by name, returning nil if the option does not exist.
@@ -402,9 +401,9 @@ func (ps ParsedOptions) String() string {
 	s := strings.Builder{}
 	s.WriteString("ParsedOptions:\n")
 	w := tabwriter.NewWriter(&s, 1, 1, 1, ' ', 0)
-	fmt.Fprintln(w, "Name\tValue\tType")
+	fmt.Fprintln(w, "Name\tInvoked Name\tDefault?\tSet?\tValue\tType")
 	for _, p := range ps {
-		fmt.Fprintf(w, "%s\t%v\t%T\n", p.name, p.value, p.value)
+		fmt.Fprintf(w, "%s\t%s\t%t\t%t\t%v\t%T\n", p.name, p.invokedName, p.isDefault, p.isSet, p.value, p.value)
 	}
 	w.Flush()
 	return s.String()
