@@ -32,14 +32,14 @@ Data should look like:
 type Commands map[string]Command
 
 type ParsedCommands  struct {
-	args []string
-	commands map[string]ParsedCommand
+	commands []ParsedCommand // list of commands in order that they were invoked, each with its set of options
+	args []string // list of remaining arguments in the command line
 }
 
 type ParsedCommand struct { // command and options as processed by parser
-	name string
-	invokedName string
-	options map[string]ParsedOption
+	name string // name of command
+	invokedName string // name by which the command was invoked
+	options map[string]ParsedOption // options for this command/subcommand
 }
 
 type ParsedOption struct {

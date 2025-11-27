@@ -54,7 +54,7 @@ type ParsedOption struct {
 }
 
 // ParsedOptions is a set of parsed options.
-type ParsedOptions []ParsedOption
+type ParsedOptions map[string]*ParsedOption
 
 // Name returns the name of a Option.
 func (opt *Option) Name() string {
@@ -106,6 +106,9 @@ func NewOption[V OptionTypes](nm string, al []string, sn rune, sa []rune, desc s
 	}
 	if nameLength == 1 {
 		return nil, fmt.Errorf("option.NewOption called with a single-rune option name: %s", name)
+	}
+	if strings.HasPrefix(name, "-") {
+		return nil, fmt.Errorf("option.NewOption called with option name starting with dash: %s", name)
 	}
 	aliases := make([]string, 0)
 	for _, aliasuntrimmed := range al { // note if al is nil, this loop is skipped
@@ -383,15 +386,14 @@ func (fs Options) String() string {
 
 // NewParsedOptions creates a new empty set of parsed options.
 func NewParsedOptions() ParsedOptions {
-	return make(ParsedOptions, 0)
+	return make(ParsedOptions)
 }
 
 // GetParsedOption gets a parsed option by name, returning nil if the option does not exist.
 func (ps *ParsedOptions) GetParsedOption(name string) *ParsedOption {
-	for _, p := range *ps {
-		if p.name == name {
-			return &p
-		}
+	opt, ok := (*ps)[name]
+	if ok {
+		return opt
 	}
 	return nil
 }

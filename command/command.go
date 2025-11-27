@@ -9,7 +9,7 @@ import (
 	"github.com/SpencerBrown/go-http/util"
 )
 
-// Command represents a command or subcommand in a command/subcommand tree. The root of the tree is a Commands, representing a set of Command. 
+// Command represents a command or subcommand in a command/subcommand tree. The root of the tree is a Commands, representing a set of Command.
 // options represents the options for this command at this level of the tree
 // subcommands is a Commands representing the subcommands that can follow this command
 // name is the name of the command
@@ -72,6 +72,9 @@ func NewCommand(nm string, al []string, desc string, longDesc string, opts optio
 	name := strings.ToLower(strings.TrimSpace(nm))
 	if utf8.RuneCountInString(name) == 0 {
 		panic("command.NewCommand called with blank command name")
+	}
+	if strings.HasPrefix(name, "-") {
+		return nil, fmt.Errorf("command.NewCommand called with command name starting with dash: %s", name)
 	}
 	aliases := make([]string, 0)
 	for _, aliasuntrimmed := range al {
